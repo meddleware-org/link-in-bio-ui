@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.1 — unreleased
+## 0.0.1 — 2026-11-17
 
 - `@meddleware/chain-payments-client` and `@meddleware/chain-payments-kit` come from npm (`^0.0.1`), no longer from sibling folders.
 - The crypto checkout gets the wallet adapter's Sui client, so it shows the platform fee read from the chain before
