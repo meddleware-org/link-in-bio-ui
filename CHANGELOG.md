@@ -2,6 +2,8 @@
 
 ## 0.0.1 — unreleased
 
+- The crypto checkout gets the wallet adapter's Sui client, so it shows the platform fee read from the chain before
+  the wallet opens.
 - The app: sign-up (handle, 18+, the current terms, optional country, an invite code when sign-up is by invitation; a passkey or a Sui
   wallet; the ten recovery codes shown once with an "I saved these codes" confirmation), sign-in (passkey with or without a handle, Sui
   wallet, recovery code), and the footer note (18+, acceptable use, terms, privacy, report).

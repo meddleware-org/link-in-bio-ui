@@ -2,6 +2,7 @@
 // needs no network: every request that leaves localhost is refused, except the example Chain Payments origin, which is answered here.
 // Returns the fake and what the page reported (uncaught errors, CSP violations).
 import { expect, type Page } from '@playwright/test'
+import { SUI_PACKAGES } from '@meddleware/chain-payments-client/sui'
 import { FakeService } from '../tests/support/fake-service.js'
 
 export const PAY_ORIGIN = 'https://pay.example.org'
@@ -9,7 +10,16 @@ export const PAY_ORIGIN = 'https://pay.example.org'
 const SESSION = {
   id: '0123456789abcdef0123456789abcdef', status: 'open', amountPence: 300, amountText: '£3.00', description: 'Example Links, 1 month', units: 1,
   expiresAt: '2026-11-16T13:00:00Z',
-  methods: [{ id: 'sui-testnet:SUI', chain: 'sui', network: 'testnet', symbol: 'SUI', decimals: 9, coinType: '0x2::sui::SUI', packageId: `0x${'1'.repeat(64)}`, merchantObject: `0x${'2'.repeat(64)}` }],
+  methods: [{ id: 'sui-testnet:SUI', chain: 'sui', network: 'testnet', symbol: 'SUI', decimals: 9, coinType: '0x2::sui::SUI', packageId: SUI_PACKAGES.testnet!, merchantObject: `0x${'2'.repeat(64)}` }],
+}
+
+/** A quote for the session: 5.542213191 SUI, held for two minutes from now. */
+function quote() {
+  return {
+    nonce: 'fedcba9876543210fedcba9876543210', session: SESSION.id, method: SESSION.methods[0], amount: '5542213191',
+    amountText: '5.542213191 SUI', priceText: '£3.00', units: 1, periodMs: '0', subscriptionRef: '',
+    expiresMs: String(Date.now() + 120_000), signature: 'ab'.repeat(64),
+  }
 }
 
 export async function wire(page: Page, service = new FakeService()) {
@@ -20,7 +30,12 @@ export async function wire(page: Page, service = new FakeService()) {
   })
   await page.route(/^https?:\/\/(?!(localhost|127\.0\.0\.1)[:/])/, (route) => route.abort())
   await page.route(`${PAY_ORIGIN}/**`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(SESSION) }),
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify(/\/quotes?$/.test(new URL(route.request().url()).pathname) ? quote() : SESSION),
+    }),
   )
   await page.route('**/api/v1/**', async (route) => {
     const req = route.request()

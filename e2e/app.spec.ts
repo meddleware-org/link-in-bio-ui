@@ -140,7 +140,12 @@ test('billing: paying for months with Chain Payments opens its checkout', async 
   await page.getByRole('button', { name: 'Continue to payment' }).click()
   await expect(page.getByRole('heading', { name: 'Pay with crypto' })).toBeVisible()
   await expect(page.getByText('Example Links, 1 month')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Get the exact price' })).toBeVisible()
+  await page.getByRole('button', { name: 'Get the exact price' }).click()
+  await expect(page.getByText('Pay exactly 5.542213191 SUI', { exact: true })).toBeVisible()
+  // The platform fee is read from the chain (the stub's PlatformConfig, 0.2 %) and shown before the wallet opens.
+  await expect(page.getByText('Platform fee (included)')).toBeVisible()
+  await expect(page.getByText(/^0\.011084426 SUI to the platform/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Pay with your wallet' })).toBeVisible()
   expect(service.callsTo('POST', '/api/v1/billing/checkouts')[0]!.body).toEqual({ method: 'chain-payments:sui-testnet:SUI', months: 3 })
   expect(problems).toEqual([])
 })

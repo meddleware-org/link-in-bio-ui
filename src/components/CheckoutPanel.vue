@@ -9,7 +9,7 @@ import type { CheckoutStatus } from '../api/types.js'
 import { useApp } from '../context.js'
 import { pollCheckout, type CheckoutPlan } from '../lib/checkout.js'
 import { day } from '../lib/format.js'
-import { signAndExecute } from '../wallet.js'
+import { getSuiClient, signAndExecute } from '../wallet.js'
 import WalletControl from './WalletControl.vue'
 
 const props = withDefaults(defineProps<{ checkoutId: string; plan: CheckoutPlan | null; follow?: boolean; pollMs?: number }>(), {
@@ -65,6 +65,8 @@ onMounted(() => {
 onBeforeUnmount(() => stop?.abort())
 
 const sign = (tx: unknown) => signAndExecute(tx as Parameters<typeof signAndExecute>[0])
+// The kit reads the platform fee from the chain with the wallet adapter's client, before the wallet opens.
+const suiClient = getSuiClient()
 </script>
 
 <template>
@@ -82,6 +84,7 @@ const sign = (tx: unknown) => signAndExecute(tx as Parameters<typeof signAndExec
       <ChainCheckout
         :session-id="plan.sessionId"
         :base-url="plan.baseUrl"
+        :sui-client="suiClient"
         :sign-and-execute="sign"
         :level="4"
         @paid="watchPayment"
