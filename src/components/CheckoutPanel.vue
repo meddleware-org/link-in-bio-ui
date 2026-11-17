@@ -1,0 +1,179 @@
+<script setup lang="ts">
+// One started checkout, whatever the provider asks for: the Chain Payments widget (paid from the connected wallet), a provider's own
+// payment page (a plain link: the person pays there and comes back to `/billing?checkout=<id>`), or a bank transfer's details. The
+// account is paid only when the service says so, so the panel then asks the service until the checkout is no longer open.
+import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { UiButton, UiCodeBlock, UiCopyButton, UiLiveStatus, UiNotice } from '@meddleware/ui'
+import { describeError } from '../api/errors.js'
+import type { CheckoutStatus } from '../api/types.js'
+import { useApp } from '../context.js'
+import { pollCheckout, type CheckoutPlan } from '../lib/checkout.js'
+import { day } from '../lib/format.js'
+import { signAndExecute } from '../wallet.js'
+import WalletControl from './WalletControl.vue'
+
+const props = withDefaults(defineProps<{ checkoutId: string; plan: CheckoutPlan | null; follow?: boolean; pollMs?: number }>(), {
+  follow: false,
+  pollMs: 3000,
+})
+const emit = defineEmits<{ settled: [status: CheckoutStatus] }>()
+
+const ChainCheckout = defineAsyncComponent(async () => (await import('@meddleware/chain-payments-kit')).ChainCheckout)
+
+const { api } = useApp()
+const result = ref<CheckoutStatus | null>(null)
+const following = ref(false)
+const stillOpen = ref(false)
+const problem = ref('')
+const kitProblem = ref('')
+let stop: AbortController | null = null
+
+async function watchPayment(): Promise<void> {
+  stop?.abort()
+  stop = new AbortController()
+  following.value = true
+  stillOpen.value = false
+  problem.value = ''
+  try {
+    const last = await pollCheckout(() => api.checkout(props.checkoutId), { intervalMs: props.pollMs, signal: stop.signal })
+    result.value = last
+    if (last && last.status !== 'open') emit('settled', last)
+    else if (!stop.signal.aborted) stillOpen.value = true
+  } catch (e) {
+    problem.value = describeError(e)
+  } finally {
+    following.value = false
+  }
+}
+
+/** One question, for a bank transfer (it can take a working day; nothing is gained by asking every few seconds). */
+async function checkOnce(): Promise<void> {
+  problem.value = ''
+  try {
+    const s = await api.checkout(props.checkoutId)
+    result.value = s
+    stillOpen.value = s.status === 'open'
+    if (s.status !== 'open') emit('settled', s)
+  } catch (e) {
+    problem.value = describeError(e)
+  }
+}
+
+onMounted(() => {
+  if (props.follow) void watchPayment()
+})
+onBeforeUnmount(() => stop?.abort())
+
+const sign = (tx: unknown) => signAndExecute(tx as Parameters<typeof signAndExecute>[0])
+</script>
+
+<template>
+  <section class="checkout" aria-labelledby="checkout-title">
+    <h3 id="checkout-title">Paying</h3>
+
+    <template v-if="result && result.status !== 'open'">
+      <UiNotice v-if="result.status === 'paid'" type="ok" :message="`Paid. Your page is paid until ${day(result.paidUntil)}.`" />
+      <UiNotice v-else type="warning" :message="`This checkout ${result.status === 'expired' ? 'expired' : 'was cancelled'} without a payment. Start a new one when you are ready.`" />
+    </template>
+
+    <template v-else-if="plan?.kind === 'chain-payments'">
+      <p>Pay from your Sui wallet. The amount is shown before you sign, and it is held for a short time.</p>
+      <WalletControl />
+      <ChainCheckout
+        :session-id="plan.sessionId"
+        :base-url="plan.baseUrl"
+        :sign-and-execute="sign"
+        :level="4"
+        @paid="watchPayment"
+        @failed="kitProblem = $event"
+      />
+      <UiNotice v-if="kitProblem" type="error" :message="kitProblem" />
+    </template>
+
+    <template v-else-if="plan?.kind === 'redirect'">
+      <p>You pay on {{ plan.provider }}’s own page. When you have paid, it sends you back here, and this page shows when the payment is confirmed.</p>
+      <p><UiButton :href="plan.url">Continue to {{ plan.provider }}</UiButton></p>
+    </template>
+
+    <template v-else-if="plan?.kind === 'bank-transfer'">
+      <p>Pay by {{ plan.scheme }} from your own bank, with these details.</p>
+      <dl class="bank">
+        <template v-for="d in plan.details" :key="d.label">
+          <dt>{{ d.label }}</dt>
+          <dd><code>{{ d.value }}</code> <UiCopyButton :value="d.value" :label="`Copy the ${d.label}`" /></dd>
+        </template>
+        <dt>Amount</dt>
+        <dd><code>{{ plan.amount }} {{ plan.currency }}</code> <UiCopyButton :value="plan.amount" label="Copy the amount" /></dd>
+      </dl>
+      <div class="reference">
+        <p class="reference-lead"><strong>Use exactly this reference</strong></p>
+        <p class="reference-value"><code>{{ plan.reference }}</code> <UiCopyButton :value="plan.reference" label="Copy the reference" /></p>
+        <p>The transfer is matched to your account by its reference alone. It can take up to a working day to arrive.</p>
+      </div>
+      <div v-if="plan.qr" class="qr">
+        <p>The same payment as a QR payload (EPC). Many banking apps can scan it when it is shown as a QR code; this app shows the text.</p>
+        <UiCodeBlock :code="plan.qr" label="EPC payment payload" />
+      </div>
+      <p><UiButton variant="secondary" @click="checkOnce">Check whether it has arrived</UiButton></p>
+    </template>
+
+    <UiNotice v-else-if="plan" type="info" message="This payment method is not available in this app yet." />
+
+    <UiLiveStatus label="Payment" :message="following ? 'Waiting for the service to confirm the payment…' : ''" />
+    <template v-if="stillOpen && plan?.kind !== 'bank-transfer'">
+      <UiNotice type="info" message="The payment is not confirmed yet. It can take a few minutes." />
+      <p><UiButton variant="secondary" @click="watchPayment">Check again</UiButton></p>
+    </template>
+    <UiNotice v-if="stillOpen && plan?.kind === 'bank-transfer'" type="info" message="Not arrived yet." />
+    <UiNotice v-if="problem" type="error" :message="problem" />
+  </section>
+</template>
+
+<style scoped>
+.checkout,
+.reference,
+.qr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.checkout h3,
+.checkout p {
+  margin: 0;
+}
+
+.bank {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2xs) var(--space-md);
+  margin: 0;
+}
+
+.bank dt {
+  font-weight: var(--font-weight-semibold);
+}
+
+.bank dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  align-items: center;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.reference {
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+}
+
+.reference-value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  align-items: center;
+  font-size: var(--font-size-lg);
+}
+</style>

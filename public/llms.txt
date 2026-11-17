@@ -1,0 +1,4 @@
+# Link in Bio app
+
+This host is the account app of a Link in Bio service: signing in, editing a page, billing and the operator console. It has no public
+content and no API for automated clients. The pages themselves live on their own hosts.

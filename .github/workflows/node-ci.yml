@@ -1,0 +1,92 @@
+name: Node CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # The release workflow runs the same checks on the tagged commit.
+  workflow_call:
+
+env:
+  DO_NOT_TRACK: "1"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Type-check and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+
+      # Until @meddleware/chain-payments-kit and @meddleware/chain-payments-client are on npm, package.json links them from sibling
+      # directories (file:../…), which a CI checkout does not have: this step fails until they are published and named by version.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npx mw-audit-gate
+
+      - name: Shared files are current
+        run: npx mw-sync --check
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Lint CSS (stylelint)
+        run: npm run lint:css
+
+      - name: Lint JS (eslint + vuejs-a11y)
+        run: npm run lint:js
+
+      - name: Lint HTML (html-validate)
+        run: npm run lint:html
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: No test support in the built files
+        run: npm run check:dist
+
+      - name: Built site (icon set once, no third-party loads)
+        run: npx vitest run tests/dist.test.ts
+        env:
+          REQUIRE_DIST: '1'
+
+      - name: Third-party licence notices
+        run: npm run check:licenses && test -s dist/THIRD_PARTY_LICENSES
+
+      # The built app (the e2e build: a mock wallet, a stub chain) in real browsers against the fake service, under the production
+      # CSP, with no network: sign-up with a virtual authenticator, the editor, billing, the report form, the console, the a11y sweep.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Browser tests (fake service)
+        run: npm run test:e2e
+        env:
+          E2E_BROWSERS: all
+
+      - name: Lighthouse (accessibility 100, best practices, bundle budgets)
+        run: npx lhci autorun
+
+  image:
+    name: Image (build and probe)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Not pushed. Builds the Dockerfile as the release does (the inline-script check included) and runs the
+      # container the way the cluster does: non-root user, read-only root, no capabilities.
+      - name: Build (not pushed)
+        run: docker build --tag link-in-bio-ui:ci .
+      - name: Probe the container (user, /, headers, bundle, licences)
+        run: bash scripts/smoke.sh link-in-bio-ui:ci

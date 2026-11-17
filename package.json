@@ -1,0 +1,96 @@
+{
+  "name": "@meddleware/link-in-bio-ui",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Link in Bio app: sign-up and sign-in (passkey, Sui wallet, recovery code), the page editor, billing, the account, the report form, the operator console and the local editor. Vue 3 SPA on @meddleware/ui; exports LinkInBioView.",
+  "author": "Meddleware",
+  "license": "0BSD",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/meddleware-org/link-in-bio-ui.git"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "build:e2e": "VITE_E2E=1 vite build --mode e2e --outDir dist-e2e",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint:css": "stylelint \"src/**/*.{css,vue}\"",
+    "lint:js": "eslint .",
+    "lint": "npm run lint:css && npm run lint:js && npm run lint:html",
+    "lint:html": "html-validate \"src/**/*.vue\"",
+    "licenses": "mw-third-party-licenses",
+    "check:licenses": "mw-third-party-licenses --check",
+    "check:csp": "mw-check-csp-inline @Dockerfile dist",
+    "test:e2e": "playwright test",
+    "shots": "SHOTS=1 playwright test",
+    "check:dist": "node scripts/check-dist.mjs dist",
+    "lhci": "npm run build && lhci autorun"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "*.css",
+    "*.vue"
+  ],
+  "dependencies": {
+    "@meddleware/chain-payments-client": "file:../chain-payments-client",
+    "@meddleware/chain-payments-kit": "file:../chain-payments-kit",
+    "@meddleware/design-tokens": "^0.1.13",
+    "@meddleware/ui": "^0.1.43",
+    "@meddleware/wallet-adapter": "^0.0.23",
+    "@meddleware/web-utils": "^0.0.4",
+    "@mysten/sui": "^2.39.1",
+    "@mysten/wallet-standard": "^0.21.0",
+    "vue": "^3.5.43"
+  },
+  "devDependencies": {
+    "@lhci/cli": "^0.16.1",
+    "@meddleware/frontend-config": "^0.0.10",
+    "@playwright/test": "~1.64.1",
+    "@types/node": "~26.6.5",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "@vue/eslint-config-typescript": "^14.9.0",
+    "@vue/test-utils": "^2.5.1",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^10.11.0",
+    "eslint-plugin-vue": "^10.11.1",
+    "eslint-plugin-vuejs-accessibility": "^2.6.0",
+    "html-validate": "^11.16.1",
+    "html-validate-vue": "^9.3.1",
+    "jiti": "^2.7.0",
+    "jsdom": "^30.1.2",
+    "postcss": "^8.4.49",
+    "postcss-html": "^2.0.0",
+    "stylelint": "^17.15.0",
+    "stylelint-config-standard": "^40.0.0",
+    "typescript": "~6.0.0",
+    "vite": "^8.3.0",
+    "vitest": "~5.1.0",
+    "vue-eslint-parser": "^10.4.1",
+    "vue-tsc": "~3.3.11"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.12.0"
+  },
+  "browserslist": [
+    "extends @meddleware/frontend-config/browserslist-config"
+  ],
+  "overrides": {
+    "basic-ftp": "^6.2.4",
+    "tmp": "^0.2.7",
+    "zod": "^4.6.7"
+  },
+  "meddleware": {
+    "kind": "app",
+    "lhci": true
+  }
+}

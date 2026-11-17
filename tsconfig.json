@@ -1,0 +1,4 @@
+{
+  "extends": "@meddleware/frontend-config/tsconfig/vue-app.json",
+  "include": ["src/**/*.ts", "src/**/*.vue", "src/**/*.d.ts", "vite.config.ts"]
+}
