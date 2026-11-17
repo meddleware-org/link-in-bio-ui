@@ -41,10 +41,7 @@ npx playwright install chromium && npm run test:e2e     # the e2e build in a bro
 npm run shots          # screenshots to test-results/shots, for looking
 ```
 
-**Unpublished dependencies.** `@meddleware/chain-payments-kit` and `@meddleware/chain-payments-client` are not on npm yet, so
-`package.json` links them from sibling directories (`file:../chain-payments-kit`, `file:../chain-payments-client`). They become `^0.0.1`
-once published; until then `npm ci` works only in a workspace that has both repositories next to this one, and CI and the image build
-cannot install.
+**Chain Payments packages.** `@meddleware/chain-payments-client` and `@meddleware/chain-payments-kit` come from npm (`^0.0.1`).
 
 ## Tests
 

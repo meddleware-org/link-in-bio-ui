@@ -47,7 +47,7 @@ width. `meddlewareApp` emits the brand icon set; `index.html` keeps `noindex`.
 
 ## Dependencies not yet on npm
 
-`@meddleware/chain-payments-kit` and `@meddleware/chain-payments-client` are `file:../…` links until they are published (then `^0.0.1`).
+`@meddleware/chain-payments-kit` and `@meddleware/chain-payments-client` come from npm (`^0.0.1`, published 2026-11-17).
 They carry their own `node_modules`, so `vite.config.ts` and `vitest.config.ts` dedupe Vue, `@meddleware/ui` and the Sui SDK.
 
 ## Looking at it

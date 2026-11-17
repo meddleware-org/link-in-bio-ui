@@ -2,6 +2,7 @@
 
 ## 0.0.1 — unreleased
 
+- `@meddleware/chain-payments-client` and `@meddleware/chain-payments-kit` come from npm (`^0.0.1`), no longer from sibling folders.
 - The crypto checkout gets the wallet adapter's Sui client, so it shows the platform fee read from the chain before
   the wallet opens.
 - The app: sign-up (handle, 18+, the current terms, optional country, an invite code when sign-up is by invitation; a passkey or a Sui

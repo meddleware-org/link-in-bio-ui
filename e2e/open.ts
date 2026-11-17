@@ -2,15 +2,20 @@
 // needs no network: every request that leaves localhost is refused, except the example Chain Payments origin, which is answered here.
 // Returns the fake and what the page reported (uncaught errors, CSP violations).
 import { expect, type Page } from '@playwright/test'
-import { SUI_PACKAGES } from '@meddleware/chain-payments-client/sui'
 import { FakeService } from '../tests/support/fake-service.js'
 
 export const PAY_ORIGIN = 'https://pay.example.org'
 
+/**
+ * The client's built-in testnet package (`SUI_PACKAGES.testnet`). Written out because Playwright's runner cannot load the
+ * client's TypeScript from node_modules; tests/e2e-fixture.test.ts checks that the two stay equal.
+ */
+export const TESTNET_PACKAGE = '0x610cf31fa9455893f1d0d139e6aa6ca4559a9f2acf07391c0d47c4e86a9c6af2'
+
 const SESSION = {
   id: '0123456789abcdef0123456789abcdef', status: 'open', amountPence: 300, amountText: '£3.00', description: 'Example Links, 1 month', units: 1,
   expiresAt: '2026-11-16T13:00:00Z',
-  methods: [{ id: 'sui-testnet:SUI', chain: 'sui', network: 'testnet', symbol: 'SUI', decimals: 9, coinType: '0x2::sui::SUI', packageId: SUI_PACKAGES.testnet!, merchantObject: `0x${'2'.repeat(64)}` }],
+  methods: [{ id: 'sui-testnet:SUI', chain: 'sui', network: 'testnet', symbol: 'SUI', decimals: 9, coinType: '0x2::sui::SUI', packageId: TESTNET_PACKAGE, merchantObject: `0x${'2'.repeat(64)}` }],
 }
 
 /** A quote for the session: 5.542213191 SUI, held for two minutes from now. */

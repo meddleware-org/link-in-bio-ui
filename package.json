@@ -42,8 +42,8 @@
     "*.vue"
   ],
   "dependencies": {
-    "@meddleware/chain-payments-client": "file:../chain-payments-client",
-    "@meddleware/chain-payments-kit": "file:../chain-payments-kit",
+    "@meddleware/chain-payments-client": "^0.0.1",
+    "@meddleware/chain-payments-kit": "^0.0.1",
     "@meddleware/design-tokens": "^0.1.13",
     "@meddleware/ui": "^0.1.43",
     "@meddleware/wallet-adapter": "^0.0.23",
