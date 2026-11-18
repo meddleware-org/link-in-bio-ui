@@ -67,7 +67,7 @@ describe.skipIf(!required && !existsSync(DIST))('the built app', () => {
   it('names no origin beyond the ones its libraries already carry as text', () => {
     // The app itself names no host: the deployment's come from the instance at run time and the build arguments (the CSP). The shared
     // libraries carry their own links and the Sui SDK the public network names, as text; the CSP decides what is ever fetched. So the
-    // hosts allowed are exactly the ones those libraries' published files contain, plus the namespaces and examples.
+    // hosts allowed are exactly the ones those libraries' published files contain, plus the namespaces and examples (RFC 2606 names, the `.example` TLD among them).
     const libraryHosts = new Set<string>()
     for (const dir of ['node_modules/@meddleware/ui/dist', 'node_modules/@meddleware/wallet-adapter/src', 'node_modules/@meddleware/web-utils/dist', 'node_modules/@meddleware/web-utils/src', 'node_modules/@mysten/sui/dist', 'node_modules/@mysten/wallet-standard/dist', 'node_modules/@meddleware/chain-payments-kit/src', 'node_modules/@meddleware/chain-payments-client/src', 'node_modules/@vue', 'node_modules/vue']) {
       if (!existsSync(dir)) continue
@@ -76,7 +76,7 @@ describe.skipIf(!required && !existsSync(DIST))('the built app', () => {
         for (const m of readFileSync(join(dir, f), 'utf8').matchAll(/https?:\/\/([a-zA-Z0-9.-]+)/g)) libraryHosts.add(m[1]!.replace(/\.$/, ''))
       }
     }
-    const allowed = /^(?:[a-z0-9-]+\.)*(?:w3\.org|localhost|127\.0\.0\.1|example\.org|example\.link)$/
+    const allowed = /^(?:[a-z0-9-]+\.)*(?:w3\.org|localhost|127\.0\.0\.1|example\.org|example\.link|example)$/
     const found = new Set<string>()
     for (const f of all.filter((n) => /\.(html|css|js|webmanifest)$/.test(n))) {
       for (const m of readFileSync(join(DIST, f), 'utf8').matchAll(/https?:\/\/([a-zA-Z0-9.-]+)/g)) found.add(m[1]!.replace(/\.$/, ''))
