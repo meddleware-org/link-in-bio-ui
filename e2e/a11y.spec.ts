@@ -97,7 +97,8 @@ defineA11ySuite(
       await page.getByLabel('Invite code').fill('INVITE-0001')
       await page.getByLabel('I am 18 or over').check()
       await page.getByLabel(/I accept the terms/).check()
-      await page.getByRole('group', { name: 'How you will sign in' }).getByText('Sui wallet', { exact: true }).click()
+      // The label, not its visually hidden radio. Its text is "✓ Sui wallet" when already chosen (WebKit has no passkeys).
+      await page.locator('label', { has: page.getByRole('radio', { name: 'Sui wallet' }) }).click()
       await connectMockWallet(page)
       await page.getByRole('button', { name: 'Create the account' }).click()
       await expect(page.getByRole('heading', { name: 'Your recovery codes' })).toBeVisible()
