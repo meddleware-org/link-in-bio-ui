@@ -41,7 +41,7 @@ npx playwright install chromium && npm run test:e2e     # the e2e build in a bro
 npm run shots          # screenshots to test-results/shots, for looking
 ```
 
-**Chain Payments packages.** `@meddleware/chain-payments-client` and `@meddleware/chain-payments-kit` come from npm (`^0.0.1`).
+**Chain Payments packages.** `@meddleware/chain-payments-client` (`^0.0.1`) and `@meddleware/chain-payments-kit` (`^0.0.2`) come from npm.
 
 ## Tests
 
@@ -54,7 +54,8 @@ npm run shots          # screenshots to test-results/shots, for looking
 | Component | `tests/edit-mode.test.ts` | the local editor asks the loopback origin's editor routes only, and nothing else |
 | Component | `tests/views.test.ts` | the hosted editor, each checkout kind, the report form, the console gate and reports queue, recovery codes, sign-up |
 | Browser | `e2e/app.spec.ts` | sign-up with a virtual authenticator (Chromium), wallet sign-in, the editor round trip, validation, keyboard reorder, the sandboxed frame, the report form, billing, the console, phone width |
-| Accessibility | `e2e/a11y.spec.ts` | the shared sweep with AAA gating over sign-in, sign-up, editor, billing, account, report, console overview and reports |
+| Browser | `e2e/app.spec.ts` | the local editor in a real browser: every request it makes is recorded, and each is a loopback editor route on the page's own origin |
+| Accessibility | `e2e/a11y.spec.ts` | the shared sweep with AAA gating over 26 states: sign-in, sign-up, the recovery codes, the editor, billing, each checkout kind (crypto price and fee, provider page, bank transfer, Open Payments), account, the report form and its confirmation, the local editor, the service down, the console's gate answers and every console section |
 | Build | `scripts/check-dist.mjs`, `tests/dist.test.ts` | no fake service, mock wallet or test runner in `dist`; `noindex`; the icon set; no third-party load |
 
 ## Licence

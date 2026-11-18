@@ -14,7 +14,12 @@ export interface HttpOptions {
   fetch?: typeof fetch
   /** Extra headers on every write (the loopback editor's own header). */
   writeHeaders?: Record<string, string>
+  /** Give up on a request after this long (default 30 s); it then fails like an unreachable server (status 0). */
+  timeoutMs?: number
 }
+
+/** How long one request may take before it is abandoned. */
+export const DEFAULT_TIMEOUT_MS = 30_000
 
 export interface RequestOptions {
   query?: Query
@@ -46,6 +51,7 @@ export function url(path: string, query?: Query): string {
 
 export function createHttp(opts: HttpOptions = {}): Http {
   const doFetch = opts.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
   async function request<T>(method: string, path: string, o: RequestOptions = {}): Promise<T> {
     const headers: Record<string, string> = { accept: o.text ? 'text/html' : 'application/json' }
@@ -63,7 +69,16 @@ export function createHttp(opts: HttpOptions = {}): Http {
     try {
       // `manual`: an access gate that sends the browser to its sign-in page must not be followed (it is cross-origin); it means
       // the person is not signed in to the gate.
-      res = await doFetch(url(path, o.query), { method, headers, body, credentials: 'same-origin', redirect: 'manual', cache: 'no-store' })
+      // `signal`: no request waits for ever (a stalled connection ends as "could not be reached", and the person can try again).
+      res = await doFetch(url(path, o.query), {
+        method,
+        headers,
+        body,
+        credentials: 'same-origin',
+        redirect: 'manual',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(timeoutMs),
+      })
     } catch {
       throw new ApiError(0, null, '')
     }

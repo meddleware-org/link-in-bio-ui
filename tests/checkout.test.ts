@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { pollCheckout, planCheckout, walletAddressValid } from '../src/lib/checkout.js'
+import { httpsHref, pollCheckout, planCheckout, walletAddressValid } from '../src/lib/checkout.js'
 import type { CheckoutStatus } from '../src/api/types.js'
 
 const st = (status: CheckoutStatus['status']): CheckoutStatus => ({ checkout: 'c-1', status, months: 1, paidUntil: status === 'paid' ? '2027-01-01T00:00:00Z' : null })
@@ -66,6 +66,15 @@ describe('what a started checkout asks for', () => {
   it('a provider’s page: an https URL and the provider’s name in words', () => {
     expect(planCheckout({ kind: 'redirect', url: 'https://pay.example.org/c/1', provider: 'gocardless' })).toEqual({ kind: 'redirect', url: 'https://pay.example.org/c/1', provider: 'GoCardless' })
     expect(planCheckout({ kind: 'redirect', url: 'javascript:alert(1)', provider: 'square' })).toEqual({ kind: 'unsupported' })
+    // A payment page is https: not even the development hosts safeHref allows.
+    for (const url of ['http://localhost:8080/pay', 'http://127.0.0.1/pay', 'http://pay.example.org/c/1']) {
+      expect(planCheckout({ kind: 'redirect', url, provider: 'square' }), url).toEqual({ kind: 'unsupported' })
+    }
+  })
+
+  it('httpsHref: what safeHref allows, https only', () => {
+    expect(httpsHref('https://wallet.example/approve?id=1')).toBe('https://wallet.example/approve?id=1')
+    for (const bad of ['http://localhost/approve', 'javascript:alert(1)', 'https://u:p@wallet.example/', '', null, undefined]) expect(httpsHref(bad), String(bad)).toBeNull()
   })
 
   it('a bank transfer: the details that are there, the amount and the reference', () => {

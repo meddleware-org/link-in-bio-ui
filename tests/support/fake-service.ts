@@ -76,8 +76,8 @@ export class FakeService {
   /** Who is signed in to the app (null: nobody). */
   handle: string | null = null
   signup: 'closed' | 'invite' | 'open' = 'invite'
-  /** The admin gate: signed in, the gate's 401/403, or the console not configured (503). */
-  gate: 'ok' | 401 | 403 | 503 = 'ok'
+  /** The admin gate: signed in, the gate's 401/403, the console not configured (503), or the edge's HTML error page (502). */
+  gate: 'ok' | 401 | 403 | 503 | 502 = 'ok'
   /** Answer the hosted routes (false: only the loopback editor's). */
   hosted = true
   free = false
@@ -119,6 +119,8 @@ export class FakeService {
   nextId = 100
   refundAsked = false
   walletAddress: unknown = null
+  /** Where the Open Payments wallet sends the browser to approve the payment. */
+  openPaymentsRedirect = 'https://wallet.example/approve?id=1'
   finished: unknown = null
   refunds: Body[] = [
     { id: 'q0000001-0000-4000-8000-000000000001', account: 'a0000001-0000-4000-8000-000000000001', handle: 'ada', event: 'e0000001-0000-4000-8000-000000000002', provider: 'chain-payments', months: 1, amountPence: 300, paidAt: NOW, reason: 'I paid twice by mistake.', status: 'open', createdAt: NOW, refundReference: null, refundEvent: null, decidedBy: null, decidedAt: null, payment: { digest: '4JFuen7pDZCzqdRwUmB4oCwbeJ7Xqw5DqBsupvwyX1wb', payer: '0x' + 'a9'.repeat(32), coinType: '0xa1ec::usdc::USDC', amount: '3965894', method: 'sui-testnet:USDC', checkout: 'c0000001-0000-4000-8000-000000000009' } },
@@ -345,7 +347,7 @@ export class FakeService {
     }
     if (/^\/api\/v1\/billing\/checkouts\/[^/]+\/open-payments$/.test(path) && method === 'POST') {
       this.walletAddress = b.walletAddress
-      return ok({ kind: 'open-payments', step: 'redirect', redirect: 'https://wallet.example/approve?id=1', wallet: 'https://wallet.example/alice', debitAmount: { value: '600', assetCode: 'GBP', assetScale: 2 }, receiveAmount: { value: '600', assetCode: 'GBP', assetScale: 2 } })
+      return ok({ kind: 'open-payments', step: 'redirect', redirect: this.openPaymentsRedirect, wallet: 'https://wallet.example/alice', debitAmount: { value: '600', assetCode: 'GBP', assetScale: 2 }, receiveAmount: { value: '600', assetCode: 'GBP', assetScale: 2 } })
     }
     if (/^\/api\/v1\/billing\/checkouts\/[^/]+\/open-payments\/finish$/.test(path) && method === 'POST') {
       this.finished = b
@@ -373,6 +375,7 @@ export class FakeService {
 
   private admin(method: string, path: string, query: Record<string, string>, b: Body): FakeReply {
     if (this.gate === 503) return err(503, 'unavailable', 'the console is not configured')
+    if (this.gate === 502) return { status: 502, text: '<!doctype html><title>502 Bad Gateway</title>' }
     if (this.gate === 401) return err(401, 'unauthorized', 'sign in first')
     if (this.gate === 403) return err(403, 'forbidden', 'not an operator of Link in Bio')
     const row = (id: string, handle: string, over: Body = {}) => ({

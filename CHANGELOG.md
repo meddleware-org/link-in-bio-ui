@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- First-pass audit (`docs/audit/link-in-bio-ui-audit.md`).
+- Every request has a 30-second deadline; a stalled one ends as "The server could not be reached".
+- A provider's payment page and an Open Payments approval page must be https (`httpsHref`); a refused approval address is explained.
+- The console tells a sign-in (401/403) from an outage: a 503 says the console is not available, with the service's words and a
+  reload; an error page from the edge is an error, not a sign-in.
+- The crypto checkout no longer shows the kit's failure code (`rejected`, `unapplied`) as a bare word.
+- The uploaded picture's URL passes `safePath`/`safeHref` before it is shown.
+- The image build runs the production-bundle scan (`check:dist`), as CI does.
+- The accessibility sweep covers 26 states (was 9), and a browser test records every request the local editor makes.
+
 ## 0.0.2 — 2026-11-18
 
 - **Open Payments checkout:** the person enters their wallet address (`https://` or a `$` payment pointer), approves the

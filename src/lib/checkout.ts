@@ -78,6 +78,15 @@ const SCHEMES: Record<string, string> = { sepa: 'a SEPA transfer', 'faster-payme
 
 const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
+/**
+ * A URL the browser is sent away to (a provider's payment page, an Open Payments wallet's approval page): `safeHref`, and https only.
+ * `safeHref` also lets `http://localhost` through for development links; a payment page never is one.
+ */
+export function httpsHref(v: string | null | undefined): string | null {
+  const u = safeHref(v)
+  return u?.startsWith('https://') ? u : null
+}
+
 /** Read the provider's `client` object into what the billing view shows. Anything malformed is `unsupported`, never guessed at. */
 export function planCheckout(client: CheckoutClient | null | undefined): CheckoutPlan {
   const c = (client ?? {}) as Record<string, unknown>
@@ -88,7 +97,7 @@ export function planCheckout(client: CheckoutClient | null | undefined): Checkou
       return sessionId && baseUrl ? { kind: 'chain-payments', sessionId, baseUrl } : { kind: 'unsupported' }
     }
     case 'redirect': {
-      const url = safeHref(text(c.url))
+      const url = httpsHref(text(c.url))
       const provider = text(c.provider)
       return url ? { kind: 'redirect', url, provider: (provider && PROVIDERS[provider]) ?? provider ?? 'the payment provider' } : { kind: 'unsupported' }
     }

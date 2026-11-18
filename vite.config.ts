@@ -22,8 +22,8 @@ const csp = imageCsp()
 
 // The API is same-origin in production (the ingress sends /api/ and /_/ on the app host to the service); in development both are proxied
 // to a local service (LINK_IN_BIO_API, default http://127.0.0.1:8080: `link-in-bio serve --mode app`, or `--mode local` for the
-// editor). The kit and the client are linked from sibling directories until they are published, so the libraries they share with the app
-// are deduplicated (one Vue, one @meddleware/ui).
+// editor). The libraries the Chain Payments kit and client share with the app are deduplicated, so the bundle carries one Vue, one
+// @meddleware/ui and one Sui SDK.
 const api = process.env.LINK_IN_BIO_API || 'http://127.0.0.1:8080'
 export default defineConfig((env) =>
   meddlewareApp({

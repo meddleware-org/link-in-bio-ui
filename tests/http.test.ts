@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { adminApi } from '../src/api/admin.js'
 import { appApi } from '../src/api/app.js'
 import { ApiError, describeError } from '../src/api/errors.js'
-import { createHttp, url } from '../src/api/http.js'
+import { createHttp, DEFAULT_TIMEOUT_MS, url } from '../src/api/http.js'
+import { hostedSource } from '../src/editor/source.js'
 
 function reply(status: number, body: unknown, type = 'application/json'): Response {
   return new Response(status === 204 ? null : typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': type } })
@@ -85,10 +86,32 @@ describe('the HTTP layer', () => {
       const e = (await http.get('/api/v1/admin/me').catch((x: unknown) => x)) as ApiError
       expect(e.signedOut).toBe(true)
     }
+    const { http: edge } = client(() => reply(502, '<!doctype html><title>502 Bad Gateway</title>', 'text/html'))
+    const bad = (await edge.get('/api/v1/admin/me').catch((x: unknown) => x)) as ApiError
+    expect([bad.status, bad.signedOut]).toEqual([502, false])
     const http = createHttp({ fetch: (() => Promise.reject(new TypeError('offline'))) as unknown as typeof fetch })
     const e = (await http.get('/api/v1/me').catch((x: unknown) => x)) as ApiError
     expect(e.status).toBe(0)
     expect(describeError(e)).toMatch(/could not be reached/)
+  })
+
+  it('gives every request a deadline: a server that never answers ends as "could not be reached"', async () => {
+    const seen: Array<AbortSignal | null | undefined> = []
+    // A fetch that never answers on its own, only to its signal (as the browser's does).
+    const stalled = ((_u: string, init: RequestInit) => {
+      seen.push(init.signal)
+      return new Promise((_, reject) => init.signal?.addEventListener('abort', () => reject(init.signal!.reason)))
+    }) as unknown as typeof fetch
+    const http = createHttp({ fetch: stalled, timeoutMs: 20 })
+    const e = (await http.post('/api/v1/page/publish').catch((x: unknown) => x)) as ApiError
+    expect(e).toBeInstanceOf(ApiError)
+    expect(e.status).toBe(0)
+    expect(seen[0]).toBeInstanceOf(AbortSignal)
+    // The default applies when none is given.
+    const { http: plain, calls } = client()
+    await plain.get('/api/v1/me')
+    expect(calls[0]!.init.signal).toBeInstanceOf(AbortSignal)
+    expect(DEFAULT_TIMEOUT_MS).toBe(30_000)
   })
 
   it('returns text when asked (the local preview) and nothing for a 204', async () => {
@@ -161,5 +184,17 @@ describe('the typed API', () => {
       'PUT /api/v1/admin/links {"url":"https://bad.example.org/","verdict":null}',
       'GET /api/v1/admin/audit ',
     ])
+  })
+})
+
+describe('the hosted editor source', () => {
+  it('passes the uploaded picture’s URL on only as a path on this site or an https URL', async () => {
+    const answer = (url: unknown) => createHttp({ fetch: (async () => reply(200, { avatar: 'sha256:ab', url })) as unknown as typeof fetch })
+    const upload = (url: unknown) => hostedSource(answer(url)).uploadAvatar(new Blob(['x'], { type: 'image/png' }))
+    expect((await upload('/api/v1/assets/ab.png')).url).toBe('/api/v1/assets/ab.png')
+    expect((await upload('https://cdn.example.org/ab.png')).url).toBe('https://cdn.example.org/ab.png')
+    for (const bad of ['javascript:alert(1)', '//evil.example/x.png', 'data:text/html,<script>1</script>', '', null]) {
+      expect((await upload(bad)).url, String(bad)).toBeNull()
+    }
   })
 })

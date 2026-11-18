@@ -84,3 +84,13 @@ describe.skipIf(!required && !existsSync(DIST))('the built app', () => {
     expect([...found].filter((host) => !allowed.test(host) && !libraryHosts.has(host))).toEqual([])
   })
 })
+
+describe('the image build', () => {
+  const dockerfile = readFileSync('Dockerfile', 'utf8')
+
+  it('scans the production bundle for test support, as CI does, before the image is made', () => {
+    const run = dockerfile.split('\n').find((l) => l.startsWith('RUN npm run build'))
+    expect(run).toMatch(/npm run build && .*npm run check:dist/)
+    expect(dockerfile).toMatch(/RUN npx mw-check-csp-inline "\$\{CSP\}" dist/)
+  })
+})

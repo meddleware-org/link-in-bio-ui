@@ -26,8 +26,6 @@ jobs:
         with:
           node-version: '26'
 
-      # Until @meddleware/chain-payments-kit and @meddleware/chain-payments-client are on npm, package.json links them from sibling
-      # directories (file:../…), which a CI checkout does not have: this step fails until they are published and named by version.
       - name: Install dependencies
         run: npm ci
 
@@ -68,7 +66,7 @@ jobs:
 
       # The built app (the e2e build: a mock wallet, a stub chain) in real browsers against the fake service, under the production
       # CSP, with no network: sign-up with a virtual authenticator, the editor, billing, the report form, the console, the a11y sweep.
-      - name: Install Chromium
+      - name: Install the browsers (Chromium, Firefox, WebKit)
         run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Browser tests (fake service)

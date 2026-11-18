@@ -24,9 +24,12 @@ export class ApiError extends Error {
     this.issues = issues
   }
 
-  /** The service did not answer as an API (an access gate's sign-in page, a redirect, or a 401). */
+  /**
+   * Not signed in: a 401, a redirect (an access gate sending the browser to its sign-in page), or an HTML page where JSON belongs that
+   * answered 200 (the gate's sign-in page); the HTTP layer gives all three status 401. An HTML error page (a 502 from the edge) is not.
+   */
   get signedOut(): boolean {
-    return this.status === 401 || this.code === 'not_json' || this.code === 'redirected'
+    return this.status === 401
   }
 }
 

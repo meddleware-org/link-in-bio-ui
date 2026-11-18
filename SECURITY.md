@@ -15,9 +15,14 @@ the admin host, Chain Payments, wallets and the cluster.
    inline script; `frame-ancestors 'none'`. The image build refuses an origin argument that is not a bare `https://` origin.
 4. The page preview is the service's renderer's output in a frame with `sandbox=""` (no scripts, opaque origin). Nothing a person typed
    is ever rendered as markup in the app: there is no `v-html`.
-5. The local editor talks only to its own loopback origin (a test proves it).
-6. Every decision (validity of a page, limits, screening, prices, who may do what) is the service's; the app shows what it says.
-7. The image is static-server, nonroot, read-only.
+5. The local editor talks only to its own loopback origin (a component test and a real-browser test that records every request prove
+   it).
+6. The browser is sent away only to https payment pages (a provider's page, an Open Payments wallet's approval page); every link and
+   image URL passes `safeHref` or `safePath`. Every request has a 30-second deadline.
+7. Every decision (validity of a page, limits, screening, prices, who may do what) is the service's; the app shows what it says.
+8. The image is static-server, nonroot, read-only; its build fails if test support reaches the bundle.
+
+The first-pass audit is [`docs/audit/link-in-bio-ui-audit.md`](docs/audit/link-in-bio-ui-audit.md).
 
 ## Supported versions
 

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // The operator console (`/admin/`). The access gate in front of the admin host signs the operator in: there is no sign-in here. A 401
-// or 403 (or the gate's own sign-in page where JSON belongs) means the operator must sign in through the gate; a 503 means the
-// deployment has not configured the console.
+// or 403 (a redirect, or the gate's own sign-in page where JSON belongs, reads as 401) means the operator must sign in through the gate.
+// A 503 is the service saying the console cannot be used now: either the deployment has not configured its gate, or something the gate
+// needs (the identity keys, the role service, the database) is down; the service's own words say which. Any other failure, including an
+// error page from the edge (a 502 that is HTML), is shown as the error it is, not as a sign-in.
 import { computed, defineAsyncComponent, onMounted, ref, type Component } from 'vue'
 import { AppTabNav, UiButton, UiLiveStatus, UiNotice, UiTabPanel, type AppTab } from '@meddleware/ui'
 import { adminApi } from '../../api/admin.js'
@@ -40,7 +42,7 @@ provideConsole({
 })
 
 const operator = ref<Operator | null>(null)
-const gate = ref<'loading' | 'ok' | 'signin' | 'unconfigured' | 'error'>('loading')
+const gate = ref<'loading' | 'ok' | 'signin' | 'unavailable' | 'error'>('loading')
 const problem = ref('')
 
 onMounted(async () => {
@@ -48,9 +50,11 @@ onMounted(async () => {
     operator.value = await api.me()
     gate.value = 'ok'
   } catch (e) {
-    if (e instanceof ApiError && (e.status === 401 || e.status === 403 || e.code === 'not_json' || e.code === 'redirected')) gate.value = 'signin'
-    else if (e instanceof ApiError && e.status === 503) gate.value = 'unconfigured'
-    else {
+    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) gate.value = 'signin'
+    else if (e instanceof ApiError && e.status === 503) {
+      gate.value = 'unavailable'
+      problem.value = e.message
+    } else {
       gate.value = 'error'
       problem.value = describeError(e)
     }
@@ -70,9 +74,14 @@ function reload(): void {
       <p>This console is behind the deployment’s access gate. Sign in there, then reload this page.</p>
       <p><UiButton @click="reload">Reload</UiButton></p>
     </template>
-    <template v-else-if="gate === 'unconfigured'">
-      <h2>The console is not configured</h2>
-      <p>This deployment has not set up the operator console’s access gate, so the console is closed.</p>
+    <template v-else-if="gate === 'unavailable'">
+      <h2>The console is not available</h2>
+      <p>
+        Either this deployment has not set up the console’s access gate, or a service the gate needs is down. Nothing was changed. Try
+        again in a moment.
+      </p>
+      <p v-if="problem">The service says: {{ problem }}.</p>
+      <p><UiButton @click="reload">Reload</UiButton></p>
     </template>
     <UiNotice v-else-if="gate === 'error'" type="error" :message="problem" />
     <template v-else-if="gate === 'ok'">

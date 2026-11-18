@@ -39,6 +39,31 @@ test('signing up with a passkey (a virtual authenticator), then the recovery cod
   expect(problems).toEqual([])
 })
 
+test('the local editor in a real browser asks nothing of any origin but its own, and only its editor routes', async ({ page }) => {
+  const LOCAL = new Set(['/api/v1/manifest', '/api/v1/limits', '/api/v1/theme/options', '/api/v1/preview', '/api/v1/avatar', '/api/v1/validate'])
+  const requests: string[] = []
+  page.on('request', (r) => requests.push(r.url()))
+  const service = new FakeService()
+  service.hosted = false
+  const { problems } = await open(page, '/edit', service)
+  await expect(page.getByRole('heading', { level: 2, name: 'Edit your page' })).toBeVisible()
+  await page.getByLabel('Name', { exact: true }).fill('Ada Local')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Saved.', { exact: true })).toBeAttached()
+  await page.getByRole('button', { name: 'Refresh the preview' }).click()
+  await expect(page.frameLocator('iframe.preview-frame').getByText('Ada Local')).toBeVisible()
+  await expect(page.locator('iframe.preview-frame')).toHaveAttribute('sandbox', '')
+  expect(service.draft.identity.displayName).toBe('Ada Local')
+
+  const origin = new URL(page.url()).origin
+  const api = requests.filter((u) => new URL(u).pathname.startsWith('/api/'))
+  expect(api.length).toBeGreaterThan(0)
+  for (const u of requests.filter((x) => !x.startsWith('data:'))) expect(new URL(u).origin, u).toBe(origin)
+  for (const u of api) expect(LOCAL.has(new URL(u).pathname), u).toBe(true)
+  expect(service.calls.filter((c) => c.path === '/api/v1/instance' || c.path.startsWith('/api/v1/me') || c.path === '/api/v1/page')).toEqual([])
+  expect(problems).toEqual([])
+})
+
 test('signing in with a Sui wallet: the wallet signs the service’s message', async ({ page }) => {
   const { service, problems } = await open(page)
   await connectMockWallet(page)
@@ -163,14 +188,19 @@ test('the console: deciding a report in the queue', async ({ page }) => {
   expect(problems).toEqual([])
 })
 
-test('the console says what to do when the gate has not signed the operator in, or the console is not configured', async ({ page }) => {
+test('the console says what to do when the gate has not signed the operator in, or the console is not available', async ({ page }) => {
   const s = new FakeService()
   s.gate = 403
   await open(page, '/admin/', s)
   await expect(page.getByRole('heading', { level: 2, name: 'Sign in through your access gate' })).toBeVisible()
   s.gate = 503
   await page.reload()
-  await expect(page.getByRole('heading', { level: 2, name: 'The console is not configured' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'The console is not available' })).toBeVisible()
+  await expect(page.getByText('The service says: the console is not configured.')).toBeVisible()
+  s.gate = 502
+  await page.reload()
+  await expect(page.getByText('The server had a problem.')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'Sign in through your access gate' })).toHaveCount(0)
 })
 
 test('every main view fits a phone: no horizontal scroll of the page', async ({ page }) => {

@@ -2,6 +2,7 @@
 // the hosted service (the signed-in account's draft) and a page on this computer (`link-in-bio serve --mode local`, the loopback editor
 // backend). The local source makes requests to the loopback origin's `/api/v1/…` only; `tests/edit-mode.test.ts` proves it.
 
+import { safeHref, safePath } from '@meddleware/web-utils'
 import type { Issue } from '../api/errors.js'
 import { createHttp, EDITOR_HEADER, type Http } from '../api/http.js'
 import { appApi } from '../api/app.js'
@@ -52,7 +53,8 @@ export function hostedSource(http: Http): EditorSource {
     themeOptions: async () => SCHEMA_1_THEME,
     async uploadAvatar(file) {
       const r = await api.uploadAvatar(file)
-      return { avatar: r.avatar, url: r.url }
+      // The URL goes into an <img src>: a path on this site (what the service sends) or an https URL, nothing else.
+      return { avatar: r.avatar, url: safePath(r.url) ?? safeHref(r.url) ?? null }
     },
     // The saved draft, rendered by the service; the generation makes the frame load it again after each save.
     preview: async (_doc, generation) => ({ src: `${api.previewPath}?v=${generation}` }),

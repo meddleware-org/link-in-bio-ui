@@ -16,7 +16,12 @@ vi.mock('@meddleware/chain-payments-kit', () => ({
     props: { sessionId: String, baseUrl: String, signAndExecute: Function, level: Number },
     emits: ['paid', 'failed'],
     setup(props, { emit }) {
-      return () => h('div', { class: 'kit', 'data-session': props.sessionId, 'data-base': props.baseUrl }, [h('button', { type: 'button', onClick: () => emit('paid', { digest: 'D' }) }, 'Kit pays')])
+      return () =>
+        h('div', { class: 'kit', 'data-session': props.sessionId, 'data-base': props.baseUrl }, [
+          h('button', { type: 'button', onClick: () => emit('paid', { digest: 'D' }) }, 'Kit pays'),
+          h('button', { type: 'button', onClick: () => emit('failed', 'rejected') }, 'Kit rejected'),
+          h('button', { type: 'button', onClick: () => emit('failed', 'something-new') }, 'Kit fails oddly'),
+        ])
     },
   }),
 }))
@@ -110,6 +115,37 @@ describe('a checkout', () => {
     expect(w!.text()).toContain('Paid. Your page is paid until')
   })
 
+  it('Chain Payments: a payment that did not count is the kit’s to explain; the panel never shows the bare reason code', async () => {
+    panel({ kind: 'chain-payments', sessionId: 'cs_1', baseUrl: 'https://pay.example.org' })
+    await settle()
+    await button(w!, 'Kit rejected').trigger('click')
+    await settle()
+    expect(w!.find('.checkout > .mw-notice, .checkout > [role="alert"]').exists()).toBe(false)
+    expect(w!.text().replace(/Kit rejected/g, '')).not.toMatch(/\brejected\b/)
+    await button(w!, 'Kit fails oddly').trigger('click')
+    await settle()
+    expect(w!.text()).toContain('The payment did not complete. Check your wallet’s history before you try again.')
+    expect(w!.text()).not.toContain('something-new')
+  })
+
+  it('Open Payments: a wallet that answers with a non-https approval address is not followed, and says why', async () => {
+    const s = new FakeService()
+    s.openPaymentsRedirect = 'http://localhost:9/approve'
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+    try {
+      panel({ kind: 'open-payments', payee: 'https://wallet.example/shop', amount: '6.00', assetCode: 'GBP' }, s)
+      await settle()
+      await w!.find('#op-wallet').setValue('$wallet.example/alice')
+      await w!.find('form.wallet').trigger('submit')
+      await settle()
+      expect(assign).not.toHaveBeenCalled()
+      expect(w!.text()).toContain('Your wallet did not give an https address to approve the payment at')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('a provider’s page: plain words and a plain link there (no new window)', async () => {
     panel({ kind: 'redirect', url: 'https://pay.example.org/c/1', provider: 'square' })
     await settle()
@@ -181,13 +217,30 @@ describe('the console', () => {
   it.each([
     [401, 'Sign in through your access gate'],
     [403, 'Sign in through your access gate'],
-    [503, 'The console is not configured'],
+    [503, 'The console is not available'],
   ] as const)('a %s from the admin API says “%s”', async (status, words) => {
     const s = new FakeService()
     s.gate = status
     open('/admin/', s)
     await settle()
     expect(w!.find('h2').text()).toBe(words)
+  })
+
+  it('a 503 passes on the service’s words and offers a reload; an HTML error page from the edge is an error, not a sign-in', async () => {
+    const s = new FakeService()
+    s.gate = 503
+    open('/admin/', s)
+    await settle()
+    expect(w!.text()).toContain('The service says: the console is not configured.')
+    expect(button(w!, 'Reload').exists()).toBe(true)
+    w!.unmount()
+    const edge = new FakeService()
+    edge.gate = 502
+    open('/admin/', edge)
+    await settle()
+    expect(w!.find('h2').exists()).toBe(false)
+    expect(w!.text()).not.toContain('Sign in through your access gate')
+    expect(w!.text()).toContain('The server had a problem.')
   })
 
   it('decides a report: actioned, with a decision and a statement, hiding its link', async () => {

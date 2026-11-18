@@ -3,12 +3,11 @@
 // payment page (a plain link: the person pays there and comes back to `/billing?checkout=<id>`), or a bank transfer's details. The
 // account is paid only when the service says so, so the panel then asks the service until the checkout is no longer open.
 import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
-import { safeHref } from '@meddleware/web-utils'
 import { UiButton, UiCodeBlock, UiCopyButton, UiLiveStatus, UiNotice, UiTextField } from '@meddleware/ui'
 import { describeError } from '../api/errors.js'
 import type { CheckoutStatus } from '../api/types.js'
 import { useApp } from '../context.js'
-import { pollCheckout, walletAddressValid, type CheckoutPlan } from '../lib/checkout.js'
+import { httpsHref, pollCheckout, walletAddressValid, type CheckoutPlan } from '../lib/checkout.js'
 import { day } from '../lib/format.js'
 import { getSuiClient, signAndExecute } from '../wallet.js'
 import WalletControl from './WalletControl.vue'
@@ -79,13 +78,24 @@ async function toWallet(): Promise<void> {
   walletBusy.value = true
   try {
     const r = await api.openPaymentsWallet(props.checkoutId, wallet.value.trim())
-    const to = safeHref(r.redirect)
-    if (!to || !to.startsWith('https://')) throw new Error('Your wallet did not give an https address to approve the payment at.')
+    const to = httpsHref(r.redirect)
+    if (!to) {
+      walletProblem.value = 'Your wallet did not give an https address to approve the payment at, so this page did not go there.'
+      walletBusy.value = false
+      return
+    }
     window.location.assign(to)
   } catch (e) {
     walletProblem.value = describeError(e)
     walletBusy.value = false
   }
+}
+
+// The kit says why a payment did not count (`rejected`, `unapplied`) and shows its own notice for each, in words; the panel adds
+// nothing then. A reason it does not know is said in words too, never as the bare code.
+const KIT_EXPLAINS = new Set(['rejected', 'unapplied'])
+function kitFailed(reason: string): void {
+  kitProblem.value = KIT_EXPLAINS.has(reason) ? '' : 'The payment did not complete. Check your wallet’s history before you try again.'
 }
 
 const sign = (tx: unknown) => signAndExecute(tx as Parameters<typeof signAndExecute>[0])
@@ -112,7 +122,7 @@ const suiClient = getSuiClient()
         :sign-and-execute="sign"
         :level="4"
         @paid="watchPayment"
-        @failed="kitProblem = $event"
+        @failed="kitFailed"
       />
       <UiNotice v-if="kitProblem" type="error" :message="kitProblem" />
     </template>

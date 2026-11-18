@@ -1,7 +1,6 @@
 # ── build stage ───────────────────────────────────────────────────────────────
-# Standalone build — the Docker context is this repo root. @meddleware/* dependencies resolve from npm
-# (@meddleware/chain-payments-kit and @meddleware/chain-payments-client must be published, and package.json must name them by
-# version instead of the sibling-directory `file:` links, before this image can be built; see README).
+# Standalone build — the Docker context is this repo root. Every @meddleware/* dependency, the Chain Payments kit and client
+# included, resolves from npm at the version the lockfile names.
 #
 # Build args (none has a default: a deployment that gives none gets no link and no extra origin):
 #   VITE_TERMS_URL         — the terms of service (sign-up and the footer)
@@ -38,7 +37,9 @@ ARG VITE_PRIVACY_URL
 ENV VITE_TERMS_URL=${VITE_TERMS_URL} \
     VITE_PRIVACY_URL=${VITE_PRIVACY_URL}
 
-RUN npm run build && npm run licenses
+# The production bundle carries no test support (the fake service, the e2e build's mock wallet and stub chain, test hooks): the
+# same scan CI runs, so a tag can never ship an image CI would have refused.
+RUN npm run build && npm run licenses && npm run check:dist
 ARG CSP
 # The CSP has no 'unsafe-inline' for scripts: the build fails if dist/ ever carries an inline <script>.
 RUN npx mw-check-csp-inline "${CSP}" dist

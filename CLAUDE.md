@@ -45,10 +45,10 @@ The user interface of the hosted Link in Bio service. See [README.md](README.md)
 arrives); no documentation or developer link; the footer note (`FooterNote.vue`) on every area but the console. Each area sets its own
 width. `meddlewareApp` emits the brand icon set; `index.html` keeps `noindex`.
 
-## Dependencies not yet on npm
+## Chain Payments packages
 
-`@meddleware/chain-payments-kit` and `@meddleware/chain-payments-client` come from npm (`^0.0.1`, published 2026-11-17).
-They carry their own `node_modules`, so `vite.config.ts` and `vitest.config.ts` dedupe Vue, `@meddleware/ui` and the Sui SDK.
+`@meddleware/chain-payments-kit` (`^0.0.2`) and `@meddleware/chain-payments-client` (`^0.0.1`) come from npm. `vite.config.ts` and
+`vitest.config.ts` dedupe Vue, `@meddleware/ui` and the Sui SDK, so the bundle carries one copy of each.
 
 ## Looking at it
 
