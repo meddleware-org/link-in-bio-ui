@@ -6,6 +6,7 @@ import { UiButton, UiDataTable, UiLiveStatus, UiNotice, UiSelectField } from '@m
 import { describeError } from '../../api/errors.js'
 import type { Billing, CheckoutStatus } from '../../api/types.js'
 import CheckoutPanel from '../../components/CheckoutPanel.vue'
+import RefundsPanel from '../../components/RefundsPanel.vue'
 import { useApp } from '../../context.js'
 import { planCheckout, type CheckoutPlan } from '../../lib/checkout.js'
 import { day, money, plural, when } from '../../lib/format.js'
@@ -55,21 +56,10 @@ async function finishOpenPayments(): Promise<void> {
   }
 }
 
-/** Refund requests for payments that arrived after their checkout closed (credited as months unless a refund is asked for). */
-const refundBusy = ref('')
-const refundDone = ref('')
-async function askRefund(eventId: string): Promise<void> {
-  refundBusy.value = eventId
-  problem.value = ''
-  try {
-    await api.refundRequest(eventId)
-    refundDone.value = 'Refund requested. The months it added are taken back when the refund is sent.'
-    await load()
-  } catch (e) {
-    problem.value = describeError(e)
-  } finally {
-    refundBusy.value = ''
-  }
+/** A refund request changed (asked or withdrawn): the history and the paid period follow. */
+async function refundsChanged(): Promise<void> {
+  await load()
+  await refreshMe().catch(() => null)
 }
 
 const offer = computed(() => billing.value?.offers.find((o) => o.id === method.value) ?? null)
@@ -108,6 +98,7 @@ async function settled(s: CheckoutStatus): Promise<void> {
 }
 
 const KIND: Record<string, string> = { purchase: 'Payment', grant: 'Given by the service', refund: 'Refund' }
+const REFUND_STATUS: Record<string, string> = { open: 'Requested', refunded: 'Refunded', withdrawn: 'Withdrawn', declined: 'Declined' }
 </script>
 
 <template>
@@ -150,9 +141,8 @@ const KIND: Record<string, string> = { purchase: 'Payment', grant: 'Given by the
         <h3 id="history-title">Past payments</h3>
         <p v-if="billing.events.some((e) => e.unapplied)">
           A payment that arrives after its checkout was paid or closed is credited as the months it was for. You can ask for a refund
-          of it instead, within 30 days.
+          of it instead, within 30 days (under Refunds).
         </p>
-        <UiNotice v-if="refundDone" type="ok" :message="refundDone" />
         <UiDataTable caption="Past payments" :rows="billing.events.length" empty="No payments yet.">
           <template #head>
             <th scope="col">Date</th>
@@ -168,22 +158,12 @@ const KIND: Record<string, string> = { purchase: 'Payment', grant: 'Given by the
             <td>{{ e.months }}</td>
             <td>{{ e.amountPence ? money(e.amountPence, billing.currency) : '—' }}</td>
             <td>{{ day(e.paidUntil) }}</td>
-            <td>
-              <template v-if="e.refundRequest">{{ e.refundRequest.status === 'refunded' ? 'Refunded' : 'Requested' }}</template>
-              <UiButton
-                v-else-if="e.refundableUntil"
-                variant="secondary"
-                :busy="refundBusy === e.id"
-                :aria-label="`Ask for a refund of the payment of ${when(e.at)} (arrived after its checkout closed; possible until ${day(e.refundableUntil)})`"
-                @click="askRefund(e.id)"
-              >
-                Ask for a refund
-              </UiButton>
-              <template v-else>—</template>
-            </td>
+            <td>{{ e.refundRequest ? (REFUND_STATUS[e.refundRequest.status] ?? e.refundRequest.status) : '—' }}</td>
           </tr>
         </UiDataTable>
       </div>
+
+      <RefundsPanel v-if="!billing.free" :history="billing.refundRequests ?? []" @changed="refundsChanged" />
     </template>
     <UiLiveStatus v-else-if="!problem" label="Loading billing" message="Loading…" />
   </div>

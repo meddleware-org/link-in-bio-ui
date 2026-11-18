@@ -23,6 +23,23 @@ export interface FakeReply {
 type Body = Record<string, any>
 
 const NOW = '2026-11-16T12:00:00Z'
+
+/** A refund line as the service writes it (`amount` is the exact decimal of `amountMinor`). */
+function refundLine(l: { purchase: string; provider: string; months: number; amountMinor: number; unit: string; scale: number; feeMinor?: number; usedMinor?: number; daysUsed?: number; destination?: Record<string, unknown> }): Body {
+  const amount = (l.amountMinor / 10 ** l.scale).toFixed(l.scale)
+  return {
+    purchase: l.purchase, checkout: null, provider: l.provider, months: l.months, amountMinor: l.amountMinor, amount, unit: l.unit, scale: l.scale,
+    feeMinor: l.feeMinor ?? 0, chargeMinor: 0, usedMinor: l.usedMinor ?? 0, daysUsed: l.daysUsed ?? 0, amountPence: l.unit === 'GBP' ? l.amountMinor : 0,
+    destination: l.destination ?? { how: 'Send the refund by hand.' }, status: 'open', refundReference: null, refundEvent: null, refundedAt: null, purchaseMonthsLeft: l.months,
+  }
+}
+
+/** What the signed-in account may ask back (GET /api/v1/billing/refunds), keyed as the service works it out. */
+const REFUND_OFFERS = {
+  cancel: { kind: 'cancel', months: 4, until: null, lines: [refundLine({ purchase: 'e0000001-0000-4000-8000-000000000003', provider: 'square', months: 4, amountMinor: 1052, unit: 'GBP', scale: 2, feeMinor: 46, usedMinor: 102, daysUsed: 4 })] },
+  unstarted: { kind: 'unstarted', months: 2, until: '2026-12-16T12:00:00Z', lines: [refundLine({ purchase: 'e0000001-0000-4000-8000-000000000001', provider: 'chain-payments', months: 2, amountMinor: 5931788, unit: 'USDC', scale: 6, feeMinor: 11887 })] },
+  unapplied: { kind: 'unapplied', months: 1, until: null, lines: [refundLine({ purchase: 'e0000001-0000-4000-8000-000000000002', provider: 'chain-payments', months: 1, amountMinor: 3965894, unit: 'USDC', scale: 6 })] },
+} as const
 const b64url = (s: string) => Buffer.from(s).toString('base64url')
 const ok = (json: unknown, status = 200): FakeReply => ({ status, json })
 const none = (): FakeReply => ({ status: 204 })
@@ -117,13 +134,25 @@ export class FakeService {
   ]
   selections: Body[] = [{ id: 's0000001-0000-4000-8000-000000000001', name: 'Long-standing', criteria: { minAgeDays: 90, published: true, paid: null, inviteesInGoodStanding: true, tag: null }, createdBy: 'operator:op', createdAt: NOW }]
   nextId = 100
-  refundAsked = false
+  /** The account's open refund request (GET /api/v1/billing/refunds), and its past ones (GET /api/v1/billing). */
+  openRefund: Body | null = null
+  refundHistory: Body[] = [
+    { id: 'q0000002-0000-4000-8000-000000000002', kind: 'unstarted', status: 'declined', reason: '', at: '2026-10-01T12:00:00Z', decidedAt: '2026-10-02T12:00:00Z', refundReference: null, details: { months: 1, note: 'The month had begun by the time it was looked at; ask again for the months still unstarted.' }, lines: [] },
+  ]
+  refundAsks: Body[] = []
   walletAddress: unknown = null
   /** Where the Open Payments wallet sends the browser to approve the payment. */
   openPaymentsRedirect = 'https://wallet.example/approve?id=1'
   finished: unknown = null
+  /** The console's queue (GET /api/v1/admin/refund-requests): a request with per-purchase lines, and one from before lines. */
   refunds: Body[] = [
-    { id: 'q0000001-0000-4000-8000-000000000001', account: 'a0000001-0000-4000-8000-000000000001', handle: 'ada', event: 'e0000001-0000-4000-8000-000000000002', provider: 'chain-payments', months: 1, amountPence: 300, paidAt: NOW, reason: 'I paid twice by mistake.', status: 'open', createdAt: NOW, refundReference: null, refundEvent: null, decidedBy: null, decidedAt: null, payment: { digest: '4JFuen7pDZCzqdRwUmB4oCwbeJ7Xqw5DqBsupvwyX1wb', payer: '0x' + 'a9'.repeat(32), coinType: '0xa1ec::usdc::USDC', amount: '3965894', method: 'sui-testnet:USDC', checkout: 'c0000001-0000-4000-8000-000000000009' } },
+    {
+      id: 'q0000003-0000-4000-8000-000000000003', account: 'a0000002-0000-4000-8000-000000000002', handle: 'spammy', kind: 'cancel', event: null,
+      reason: 'I signed up by mistake.', status: 'open', details: { computedAt: NOW, until: null, months: 4 }, createdAt: NOW,
+      refundReference: null, refundEvent: null, decidedBy: null, decidedAt: null, monthStarted: false, payment: null,
+      lines: [refundLine({ purchase: 'e0000002-0000-4000-8000-000000000003', provider: 'square', months: 4, amountMinor: 1052, unit: 'GBP', scale: 2, feeMinor: 46, usedMinor: 102, daysUsed: 4, destination: { how: 'Refund the payment in the Square Dashboard (Transactions), for exactly the amount shown.', payment: 'sq-pay-1', order: 'sq-order-1' } })],
+    },
+    { id: 'q0000001-0000-4000-8000-000000000001', account: 'a0000001-0000-4000-8000-000000000001', handle: 'ada', kind: 'unapplied', event: 'e0000001-0000-4000-8000-000000000002', reason: 'I paid twice by mistake.', status: 'open', details: null, createdAt: NOW, refundReference: null, refundEvent: null, decidedBy: null, decidedAt: null, monthStarted: false, lines: [], payment: { provider: 'chain-payments', months: 1, amountPence: 300, paidAt: NOW, digest: '4JFuen7pDZCzqdRwUmB4oCwbeJ7Xqw5DqBsupvwyX1wb', payer: '0x' + 'a9'.repeat(32), coinType: '0xa1ec::usdc::USDC', amount: '3965894', method: 'sui-testnet:USDC', checkout: 'c0000001-0000-4000-8000-000000000009' } },
   ]
 
   private id(): string {
@@ -337,13 +366,37 @@ export class FakeService {
         notes: [],
         events: [
           { id: 'e0000001-0000-4000-8000-000000000001', provider: 'chain-payments', kind: 'purchase', months: 3, amountPence: 900, at: '2026-09-16T12:00:00Z', paidUntil: '2026-12-16T12:00:00Z', unapplied: false, refundableUntil: null, refundRequest: null },
-          { id: 'e0000001-0000-4000-8000-000000000002', provider: 'chain-payments', kind: 'purchase', months: 1, amountPence: 300, at: '2026-11-10T12:00:00Z', paidUntil: '2027-01-16T12:00:00Z', unapplied: true, refundableUntil: '2026-12-10T12:00:00Z', refundRequest: this.refundAsked ? { id: 'q1', status: 'open', refundReference: null, at: NOW, decidedAt: null } : null },
+          { id: 'e0000001-0000-4000-8000-000000000002', provider: 'chain-payments', kind: 'purchase', months: 1, amountPence: 300, at: '2026-11-10T12:00:00Z', paidUntil: '2027-01-16T12:00:00Z', unapplied: true, refundableUntil: '2026-12-10T12:00:00Z', refundRequest: this.openRefund?.kind === 'unapplied' ? { id: this.openRefund.id, status: 'open', refundReference: null, at: NOW, decidedAt: null } : null },
+          { id: 'e0000001-0000-4000-8000-000000000003', provider: 'square', kind: 'purchase', months: 4, amountPence: 1200, at: '2026-11-12T12:00:00Z', paidUntil: '2027-05-16T12:00:00Z', unapplied: false, refundableUntil: null, refundRequest: null },
         ],
+        refundRequests: [...(this.openRefund ? [this.openRefund] : []), ...this.refundHistory],
       })
     }
-    if (/^\/api\/v1\/billing\/events\/[^/]+\/refund-request$/.test(path) && method === 'POST') {
-      this.refundAsked = true
-      return ok({ refundRequest: 'q1', status: 'open', event: path.split('/')[5] }, 201)
+    if (path === '/api/v1/billing/refunds' && method === 'GET') {
+      return ok({
+        openRequest: this.openRefund,
+        cancel: [{ offer: REFUND_OFFERS.cancel, purchase: 'e0000001-0000-4000-8000-000000000003', at: '2026-11-12T12:00:00Z' }],
+        unstarted: { months: 2, all: { offer: REFUND_OFFERS.unstarted } },
+        unapplied: [{ offer: REFUND_OFFERS.unapplied, purchase: 'e0000001-0000-4000-8000-000000000002' }],
+        rules: { cancelDays: 14, unappliedDays: 30, daysPerMonth: 30 },
+      })
+    }
+    if (path === '/api/v1/billing/refund-requests' && method === 'POST') {
+      if (this.openRefund) return err(409, 'conflict', 'You already have an open refund request: withdraw it, or wait for the operator to send it.')
+      const kind = b.kind as keyof typeof REFUND_OFFERS
+      const offer = REFUND_OFFERS[kind]
+      if (!offer) return err(400, 'bad_request', 'kind is cancel, unstarted or unapplied')
+      this.refundAsks.push(b)
+      const id = this.id()
+      this.openRefund = { id, kind, status: 'open', reason: b.reason ?? '', at: NOW, decidedAt: null, refundReference: null, details: { computedAt: NOW, until: offer.until, months: offer.months }, lines: offer.lines }
+      return ok({ refundRequest: id, status: 'open', offer }, 201)
+    }
+    const wd = /^\/api\/v1\/billing\/refund-requests\/([^/]+)\/withdraw$/.exec(path)
+    if (wd && method === 'POST') {
+      if (!this.openRefund || this.openRefund.id !== wd[1]) return err(404, 'not_found', 'not found')
+      this.refundHistory.unshift({ ...this.openRefund, status: 'withdrawn', decidedAt: NOW })
+      this.openRefund = null
+      return none()
     }
     if (/^\/api\/v1\/billing\/checkouts\/[^/]+\/open-payments$/.test(path) && method === 'POST') {
       this.walletAddress = b.walletAddress
@@ -390,6 +443,8 @@ export class FakeService {
         appealsOpen: 1, links: { flagged: 2, unknown: 1 }, storageBytes: 204800, checkoutsOpen: 1,
         switches: { signup: 'invite', thirdPartyPages: true, billingProviders: ['manual', 'chain-payments'], customHostnameCap: 10, webRisk: false, federation: true, bankFeeds: ['wise'] },
         bankFeeds: [{ feed: 'wise', polledAt: NOW, lastError: null, creditsSeen: 4 }],
+        accountLimits: { preset: 'standard', changesPerHour: 30, newLinksPerDay: 120 },
+        webRisk: { on: true, mode: 'lookup', month: '2026-11', calls: 1234, monthlyCap: 90000, paidMonthlyCalls: 0, allowance: 90000, rechecksStopAt: 72000, confirms: 0, confirmMonthlyCap: 0, maxEntries: 262144, lists: [] },
       })
     }
     if (path === '/accounts') return ok({ accounts: accounts.filter((a) => a.handle.startsWith(query.q ?? '')) })
@@ -439,8 +494,25 @@ export class FakeService {
     if (rf && method === 'POST') {
       const r = this.refunds.find((x) => x.id === rf[1])
       if (!r) return err(404, 'not_found', 'no such request')
-      Object.assign(r, { status: 'refunded', refundReference: b.reference, decidedBy: 'operator:op', decidedAt: NOW })
+      const lines = r.lines as Body[]
+      if (lines.length) {
+        const open = lines.filter((l) => l.status === 'open')
+        const line = b.purchase ? open.find((l) => l.purchase === b.purchase) : open.length === 1 ? open[0] : undefined
+        if (!line) return err(422, 'unprocessable', 'This request has several purchases to refund: name the purchase this refund was for.')
+        Object.assign(line, { status: 'refunded', refundReference: b.reference, refundedAt: NOW })
+        if (lines.every((l) => l.status === 'refunded')) Object.assign(r, { status: 'refunded', refundReference: b.reference, decidedBy: 'operator:op', decidedAt: NOW })
+      } else {
+        Object.assign(r, { status: 'refunded', refundReference: b.reference, decidedBy: 'operator:op', decidedAt: NOW })
+      }
       return ok({ request: r, paidUntil: '2026-12-16T12:00:00Z' })
+    }
+    const dc = /^\/refund-requests\/([^/]+)\/declined$/.exec(path)
+    if (dc && method === 'POST') {
+      const r = this.refunds.find((x) => x.id === dc[1])
+      if (!r) return err(404, 'not_found', 'no such request')
+      if (!String(b.reason ?? '').trim()) return err(422, 'unprocessable', 'Say why, for the account holder.')
+      Object.assign(r, { status: 'declined', decidedBy: 'operator:op', decidedAt: NOW, details: { ...(r.details as Body | null), note: b.reason } })
+      return ok({ request: r })
     }
     if (path === '/blocklist' && method === 'GET') return ok({ entries: this.blocklist })
     if (path === '/blocklist' && method === 'POST') {

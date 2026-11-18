@@ -140,7 +140,7 @@ export interface Offer {
 
 export interface RefundRequestState {
   id: string
-  status: 'open' | 'refunded'
+  status: RefundStatus
   refundReference: string | null
   at: string
   decidedAt: string | null
@@ -193,6 +193,89 @@ export interface Billing {
   offers: Offer[]
   notes: string[]
   events: BillingEvent[]
+  /** Every refund request of the account, newest first. */
+  refundRequests?: AccountRefundRequest[]
+}
+
+export type RefundKind = 'cancel' | 'unstarted' | 'unapplied'
+export type RefundStatus = 'open' | 'refunded' | 'withdrawn' | 'declined'
+
+/**
+ * One purchase's part of a refund: exactly what is sent back (`amount` of `unit`; `amountMinor` in its smallest denomination, `scale`
+ * decimals) and the months it takes back. The deductions are in the same unit: the payment provider's fee share, an outgoing charge
+ * and, for a cancellation, the days already used.
+ */
+export interface RefundOfferLine {
+  purchase: string
+  provider: string
+  months: number
+  amountMinor: number
+  amount: string
+  unit: string
+  scale: number | null
+  feeMinor: number
+  chargeMinor: number
+  usedMinor: number
+  daysUsed: number
+  /** For the operator: how to send it, and the provider's identifiers. */
+  destination: { how?: string; [k: string]: unknown }
+}
+
+/** A recorded line: the offer line, plus how it was settled. */
+export interface RefundLine extends RefundOfferLine {
+  checkout: string | null
+  amountPence: number
+  status: 'open' | 'refunded'
+  refundReference: string | null
+  refundEvent: string | null
+  refundedAt: string | null
+  purchaseMonthsLeft: number
+}
+
+export interface RefundOffer {
+  kind: RefundKind
+  /** Months taken back once every line is refunded. */
+  months: number
+  /** Unstarted months: the paid period ends here afterwards. */
+  until: string | null
+  lines: RefundOfferLine[]
+}
+
+/** Either what may be asked for, or why not (in plain words). */
+export type RefundAnswer = { offer: RefundOffer; refused?: undefined } | { refused: string; offer?: undefined }
+
+/** A refund request as its account holder sees it. */
+export interface AccountRefundRequest {
+  id: string
+  kind: RefundKind
+  status: RefundStatus
+  reason: string | null
+  at: string
+  decidedAt: string | null
+  refundReference: string | null
+  /** What was worked out when it was asked; `note` is the operator's reason when declined. */
+  details: { computedAt?: string; until?: string | null; months?: number; note?: string; [k: string]: unknown } | null
+  lines: RefundLine[]
+}
+
+/** `GET /api/v1/billing/refunds`: what may be asked back now, worked out exactly. */
+export interface Refundable {
+  openRequest: AccountRefundRequest | null
+  /** Each purchase still inside the cancellation window. */
+  cancel: Array<RefundAnswer & { purchase: string; at: string }>
+  /** Months that have not begun (newest purchases first). `all` is the offer for every one of them. */
+  unstarted: { months: number; all: RefundAnswer }
+  /** Late payments, which may come back whole. */
+  unapplied: Array<RefundAnswer & { purchase: string }>
+  rules: { cancelDays: number; unappliedDays: number; daysPerMonth: number }
+}
+
+export interface RefundAsk {
+  kind: RefundKind
+  purchase?: string
+  /** Unstarted: how many (all of them when absent). */
+  months?: number
+  reason?: string
 }
 
 /** What the provider's checkout needs in the browser. Chain Payments: a session id and its public origin. */
@@ -292,6 +375,28 @@ export interface Overview {
     bankFeeds?: string[]
   }
   bankFeeds?: { feed: string; polledAt: string | null; lastError: string | null; creditsSeen: number }[]
+  /** The change budgets in effect: changes (publishes and picture uploads) an hour, new links a day; 0 is no limit. */
+  accountLimits?: { preset: 'standard' | 'generous'; changesPerHour: number; newLinksPerDay: number }
+  webRisk?: OverviewWebRisk
+}
+
+/** Link screening with Google Web Risk this month (`lookup` checks each link; `update` keeps the lists here). */
+export interface OverviewWebRisk {
+  on: boolean
+  mode: 'lookup' | 'update'
+  month: string
+  calls: number
+  monthlyCap: number
+  /** Lookup: calls past the free allowance that may be paid for. */
+  paidMonthlyCalls?: number
+  allowance?: number
+  /** Lookup: the count at which rechecks stop, keeping the rest for new links. */
+  rechecksStopAt?: number | null
+  /** Update: confirmations of a local match this month, and their cap. */
+  confirms?: number
+  confirmMonthlyCap?: number
+  maxEntries?: number
+  lists?: Array<{ threatType: string; entries: number; updatedAt: string; nextDiffAt: string | null; lastError: string | null }>
 }
 
 /** A refund request in the console's queue: what the refund must match, and how it was settled. */
@@ -299,19 +404,34 @@ export interface RefundRequestRow {
   id: string
   account: string
   handle: string
-  event: string
-  provider: string
-  months: number
-  amountPence: number
-  paidAt: string
+  kind: RefundKind
+  /** The late payment, for an `unapplied` request. */
+  event: string | null
   reason: string | null
-  status: 'open' | 'refunded'
+  status: RefundStatus
+  details: AccountRefundRequest['details']
   createdAt: string
   refundReference: string | null
   refundEvent: string | null
   decidedBy: string | null
   decidedAt: string | null
-  payment: { digest: string | null; payer: string | null; coinType: string | null; amount: string | null; method: string | null; checkout: string | null } | null
+  /** Exactly what to send, per purchase. */
+  lines: RefundLine[]
+  /** Unstarted months asked for, and the first of them has begun since: decline it, and the holder can ask again. */
+  monthStarted: boolean
+  /** A request from before per-purchase lines (one late payment): the payment to refund whole. */
+  payment: {
+    provider: string | null
+    months: number | null
+    amountPence: number | null
+    paidAt: string | null
+    digest: string | null
+    payer: string | null
+    coinType: string | null
+    amount: string | null
+    method: string | null
+    checkout: string | null
+  } | null
 }
 
 export interface AccountRow {

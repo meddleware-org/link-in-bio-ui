@@ -59,6 +59,13 @@ defineA11ySuite(
       await signedIn(page)
       await tab(page, 'Billing').click()
       await expect(page.getByRole('heading', { name: 'Past payments' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Cancel a payment' })).toBeVisible()
+    },
+    'billing: refund requested': async (page) => {
+      await signedIn(page)
+      await tab(page, 'Billing').click()
+      await page.getByRole('button', { name: 'Ask for this payment back' }).click()
+      await expect(page.getByRole('heading', { name: 'Your refund request' })).toBeVisible()
     },
     account: async (page) => {
       await signedIn(page)
@@ -72,10 +79,11 @@ defineA11ySuite(
     'console overview': async (page) => {
       await consoleAt(page, 'Overview')
       await expect(page.getByRole('heading', { name: 'Switches' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: /^Web Risk this month/ })).toBeVisible()
     },
     'console refunds': async (page) => {
       await consoleAt(page, 'Refunds')
-      await expect(page.getByRole('heading', { name: 'Record the refund' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: /^spammy: cancellation/ })).toBeVisible()
     },
     'console reports': async (page) => {
       await consoleAt(page, 'Reports')

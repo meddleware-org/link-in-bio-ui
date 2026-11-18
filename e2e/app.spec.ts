@@ -216,14 +216,32 @@ test('every main view fits a phone: no horizontal scroll of the page', async ({ 
   expect(problems).toEqual([])
 })
 
-test('billing: a payment that arrived after its checkout closed can be refunded instead', async ({ page }) => {
+test('billing: refunds are asked for as the service works them out, and can be withdrawn', async ({ page }) => {
   const { service, problems } = await signedIn(page)
   await tab(page, 'Billing').click()
-  await expect(page.getByText('credited as the months it was for')).toBeVisible()
-  await page.getByRole('button', { name: /Ask for a refund of the payment/ }).click()
-  await expect(page.getByText('Refund requested.')).toBeVisible()
-  await expect(page.getByRole('cell', { name: 'Requested' })).toBeVisible()
-  expect(service.callsTo('POST', '/api/v1/billing/events/e0000001-0000-4000-8000-000000000002/refund-request')).toHaveLength(1)
+  const refunds = page.getByRole('region', { name: 'Refunds' })
+  await expect(refunds.getByText(/Within 14 days of a payment you can cancel it/)).toBeVisible()
+  // A payment inside the window comes back less the days used and the provider's fee share, in the unit it was paid in.
+  await expect(refunds.getByText(/£10\.52/).first()).toBeVisible()
+  await expect(refunds.getByText(/4 days used/).first()).toBeVisible()
+  // A late payment comes back whole.
+  await refunds.getByRole('button', { name: 'Ask for this payment back' }).click()
+  await expect(page.getByText(/Refund requested: 3\.965894 USDC/)).toBeAttached()
+  await expect(refunds.getByRole('heading', { name: 'Your refund request' })).toBeVisible()
+  expect(service.refundAsks).toEqual([{ kind: 'unapplied', purchase: 'e0000001-0000-4000-8000-000000000002' }])
+  await refunds.getByRole('button', { name: 'Withdraw the request' }).click()
+  await expect(page.getByText(/Your refund request is withdrawn/)).toBeAttached()
+  await expect(refunds.getByRole('cell', { name: 'Withdrawn' })).toBeVisible()
+  // Months not started: as many as chosen.
+  await refunds.getByLabel('Months to have back').selectOption('1')
+  await refunds.getByRole('button', { name: 'Ask for them back' }).click()
+  await expect(refunds.getByRole('heading', { name: 'Your refund request' })).toBeVisible()
+  expect(service.refundAsks.at(-1)).toEqual({ kind: 'unstarted', months: 1 })
+  // One open request at a time: the choices come back once it is withdrawn, and the cancellation is asked for the purchase.
+  await refunds.getByRole('button', { name: 'Withdraw the request' }).click()
+  await refunds.getByRole('button', { name: /^Cancel the payment of/ }).click()
+  await expect(refunds.getByRole('heading', { name: 'Your refund request' })).toBeVisible()
+  expect(service.refundAsks.at(-1)).toEqual({ kind: 'cancel', purchase: 'e0000001-0000-4000-8000-000000000003' })
   expect(problems).toEqual([])
 })
 
@@ -250,13 +268,22 @@ test('billing: Open Payments asks for the wallet, goes there, and finishes on th
   expect(problems.filter((p) => !p.includes('wallet.example'))).toEqual([])
 })
 
-test('the console: recording a refund takes the months back', async ({ page }) => {
+test('the console: a refund is recorded per purchase, and a request can be declined', async ({ page }) => {
   const { service, problems } = await consoleAt(page, 'Refunds')
-  await expect(page.getByRole('article', { name: /^ada: payment of/ })).toBeVisible()
-  await expect(page.getByText('3965894')).toBeVisible()
-  await page.getByLabel('The refund transaction (digest)').fill('8xRefundDigest111111111111111111111111111111')
-  await page.getByRole('button', { name: 'Record the refund' }).click()
-  await expect(page.getByText(/The refund to ada is recorded/)).toBeAttached()
+  const cancel = page.getByRole('article', { name: /^spammy: cancellation/ })
+  await expect(cancel.getByText('£10.52')).toBeVisible()
+  await expect(cancel.getByText('sq-pay-1')).toBeVisible()
+  await expect(cancel.getByText(/Refund the payment in the Square Dashboard/)).toBeVisible()
+  await cancel.getByLabel("The refund's reference").fill('sq-refund-1')
+  await cancel.getByRole('button', { name: 'Record this refund' }).click()
+  await expect(page.getByText(/The refund to spammy is recorded; 4 months taken back/)).toBeAttached()
   expect(service.refunds[0]!.status).toBe('refunded')
+  // A request from before per-purchase lines: the payment to refund whole.
+  const late = page.getByRole('article', { name: /^ada: late payment/ })
+  await expect(late.getByText('3965894')).toBeVisible()
+  await late.getByLabel('Decline: the reason (the holder sees this)').fill('The wallet returned this payment already.')
+  await late.getByRole('button', { name: 'Decline the request' }).click()
+  await expect(page.getByText(/The request from ada is declined/)).toBeAttached()
+  expect(service.refunds[1]!.status).toBe('declined')
   expect(problems).toEqual([])
 })

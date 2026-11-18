@@ -18,6 +18,8 @@ onMounted(async () => {
   }
 })
 const SIGNUP: Record<string, string> = { closed: 'Closed', invite: 'By invitation', open: 'Open' }
+const budget = (n: number, per: string) => (n ? `${n.toLocaleString('en-GB')} ${per}` : 'no limit')
+const count = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-GB')
 </script>
 
 <template>
@@ -65,6 +67,39 @@ const SIGNUP: Record<string, string> = { closed: 'Closed', invite: 'By invitatio
           <UiStatRow label="Bank feeds">{{ o.switches.bankFeeds?.join(', ') || 'none' }}</UiStatRow>
         </UiStatGrid>
       </section>
+      <section v-if="o.accountLimits" aria-labelledby="ov-limits">
+        <h3 id="ov-limits">Change budgets per account</h3>
+        <p>Removing or hiding links, and taking a page offline, are never limited.</p>
+        <UiStatGrid>
+          <UiStatRow label="Preset">{{ o.accountLimits.preset === 'generous' ? 'Generous' : 'Standard' }}</UiStatRow>
+          <UiStatRow label="Changes (publishes and picture uploads)">{{ budget(o.accountLimits.changesPerHour, 'an hour') }}</UiStatRow>
+          <UiStatRow label="New links">{{ budget(o.accountLimits.newLinksPerDay, 'a day') }}</UiStatRow>
+        </UiStatGrid>
+      </section>
+      <section v-if="o.webRisk" aria-labelledby="ov-webrisk">
+        <h3 id="ov-webrisk">Web Risk this month ({{ o.webRisk.month }})</h3>
+        <p v-if="!o.webRisk.on">Off: links are checked against the built-in rules, the blocklist and ThreatFox only.</p>
+        <UiStatGrid v-else-if="o.webRisk.mode === 'lookup'">
+          <UiStatRow label="Mode">Lookup (each new link is checked with Google)</UiStatRow>
+          <UiStatRow label="Calls">{{ count(o.webRisk.calls) }} of {{ count(o.webRisk.allowance ?? o.webRisk.monthlyCap) }}</UiStatRow>
+          <UiStatRow label="Free allowance">{{ count(o.webRisk.monthlyCap) }}</UiStatRow>
+          <UiStatRow label="Paid calls allowed">{{ count(o.webRisk.paidMonthlyCalls) }}</UiStatRow>
+          <UiStatRow v-if="o.webRisk.rechecksStopAt != null" label="Rechecks stop at">{{ count(o.webRisk.rechecksStopAt) }} (the rest is kept for new links)</UiStatRow>
+        </UiStatGrid>
+        <template v-else>
+          <UiStatGrid>
+            <UiStatRow label="Mode">Update (the lists are kept here; no link leaves the service)</UiStatRow>
+            <UiStatRow label="Calls">{{ count(o.webRisk.calls) }} of {{ count(o.webRisk.monthlyCap) }}</UiStatRow>
+            <UiStatRow label="Confirmations">{{ count(o.webRisk.confirms) }} of {{ count(o.webRisk.confirmMonthlyCap) }}</UiStatRow>
+          </UiStatGrid>
+          <UiStatGrid v-if="o.webRisk.lists?.length">
+            <UiStatRow v-for="l in o.webRisk.lists" :key="l.threatType" :label="l.threatType">
+              <UiBadge :tone="l.lastError ? 'danger' : 'ok'">{{ l.lastError ? 'Failing' : 'Current' }}</UiBadge>
+              {{ count(l.entries) }} entries, updated {{ when(l.updatedAt) }}<template v-if="l.lastError">: {{ l.lastError }}</template>
+            </UiStatRow>
+          </UiStatGrid>
+        </template>
+      </section>
       <section v-if="o.bankFeeds?.length" aria-labelledby="ov-feeds">
         <h3 id="ov-feeds">Bank feeds</h3>
         <UiStatGrid>
@@ -92,7 +127,8 @@ const SIGNUP: Record<string, string> = { closed: 'Closed', invite: 'By invitatio
 }
 
 h2,
-h3 {
+h3,
+p {
   margin: 0;
 }
 </style>

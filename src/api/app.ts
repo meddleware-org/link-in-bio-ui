@@ -20,7 +20,7 @@ import type {
   SignupStartBody,
   Statements,
   TxtRecord,
-  WalletChallenge, OpenPaymentsFinished, OpenPaymentsRedirect } from './types.js'
+  WalletChallenge, OpenPaymentsFinished, OpenPaymentsRedirect, Refundable, RefundAsk, RefundOffer } from './types.js'
 import type { Issue } from './errors.js'
 
 const enc = encodeURIComponent
@@ -74,9 +74,11 @@ export function appApi(http: Http) {
     /** Open Payments: back from the wallet, with the values it added to the return address. */
     openPaymentsFinish: (id: string, hash: string, interactRef: string) =>
       http.post<OpenPaymentsFinished>(`/api/v1/billing/checkouts/${enc(id)}/open-payments/finish`, { hash, interactRef }),
-    /** Ask for a refund of a payment that arrived after its checkout closed. */
-    refundRequest: (eventId: string, reason?: string) =>
-      http.post<{ refundRequest: string; status: string }>(`/api/v1/billing/events/${enc(eventId)}/refund-request`, reason ? { reason } : {}),
+    /** What may be asked back now: cancellations, unstarted months, late payments, and the open request. */
+    refunds: () => http.get<Refundable>('/api/v1/billing/refunds'),
+    /** Ask for a refund; the operator sends it by hand, and its months are taken back then. One open request at a time. */
+    askRefund: (b: RefundAsk) => http.post<{ refundRequest: string; status: string; offer: RefundOffer }>('/api/v1/billing/refund-requests', b),
+    withdrawRefund: (id: string) => http.post<void>(`/api/v1/billing/refund-requests/${enc(id)}/withdraw`),
 
     domains: () => http.get<Domains>('/api/v1/domains'),
     addDomain: (hostname: string) => http.post<{ hostname: string; record: TxtRecord }>('/api/v1/domains', { hostname }),

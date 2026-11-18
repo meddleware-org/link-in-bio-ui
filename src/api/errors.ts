@@ -65,6 +65,9 @@ export function describeError(e: unknown): string {
     case 409:
     case 422:
       return e.message || 'The server refused that. Check the form and try again.'
+    case 429:
+      // The service's own limits say which one and when it resets; the edge's rate limit has no words of its own.
+      return e.code === 'limited' && e.message ? e.message : 'Too many requests at once. Wait a moment and try again.'
     case 503:
       return 'The service is temporarily unavailable. Try again in a moment; nothing was changed.'
     default:

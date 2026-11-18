@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Refunds on request, for link-in-bio-service 0.0.5 (D126): Billing shows what may come back now, as the service works it out
+  (a cancellation within 14 days less the days used, months not started, a late payment whole; each less the provider's fee
+  share), asks for it (one open request at a time) and withdraws it; past requests show how they ended, with the operator's
+  reason when declined.
+- The console's refund queue shows each purchase's line (exactly what to send, in its unit, what was taken off, how to send it
+  and the provider's identifiers), records a refund per line, declines a request with a reason, and filters by every status;
+  requests from before per-purchase lines still show the payment to refund whole.
+- The console's Overview shows the change budgets per account (D127) and Web Risk this month, in either mode (D128).
+- A 429 shows the service's own words (which budget, and when it resets); the edge's rate limit gets a plain sentence.
+- Amounts are shown exactly in their own unit (`amount`): ISO currencies as money, coins with their symbol.
+
 ## 0.0.2 — 2026-11-18
 
 - First-pass audit (`docs/audit/link-in-bio-ui-audit.md`).

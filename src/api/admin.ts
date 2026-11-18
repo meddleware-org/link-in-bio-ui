@@ -48,8 +48,11 @@ export function adminApi(http: Http) {
       http.post<void>(`${P}/reports/${enc(id)}/decide`, b),
     appeals: (status: string) => http.get<{ appeals: AppealRow[] }>(`${P}/appeals`, { status }),
     refundRequests: (status: string) => http.get<{ requests: RefundRequestRow[] }>(`${P}/refund-requests`, { status }),
-    recordRefund: (id: string, b: { reference: string; note?: string }) =>
+    /** A refund sent by hand: its reference, and which purchase's line when the request has several. */
+    recordRefund: (id: string, b: { reference: string; purchase?: string; note?: string }) =>
       http.post<{ request: RefundRequestRow; paidUntil: string | null }>(`${P}/refund-requests/${enc(id)}/refunded`, b),
+    /** Nothing is refunded; the holder sees the reason. */
+    declineRefund: (id: string, b: { reason: string }) => http.post<{ request: RefundRequestRow }>(`${P}/refund-requests/${enc(id)}/declined`, b),
     decideAppeal: (id: string, b: { status: 'upheld' | 'rejected'; statement: string; reinstate: boolean }) =>
       http.post<void>(`${P}/appeals/${enc(id)}/decide`, b),
 
