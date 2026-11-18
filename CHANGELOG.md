@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.3 — 2026-11-18
 
 - Refunds on request, for link-in-bio-service 0.0.5 (D126): Billing shows what may come back now, as the service works it out
   (a cancellation within 14 days less the days used, months not started, a late payment whole; each less the provider's fee
