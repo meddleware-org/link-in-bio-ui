@@ -68,6 +68,8 @@ export type CheckoutPlan =
       reference: string
       qr: string | null
     }
+  /** Open Payments (Interledger): the person names their wallet, approves the payment there and comes back here. */
+  | { kind: 'open-payments'; payee: string; amount: string; assetCode: string }
   /** A kind this app cannot handle yet. */
   | { kind: 'unsupported' }
 
@@ -110,7 +112,25 @@ export function planCheckout(client: CheckoutClient | null | undefined): Checkou
       const scheme = text(c.scheme) ?? ''
       return { kind: 'bank-transfer', scheme: SCHEMES[scheme] ?? 'a bank transfer', details, amount, currency, reference, qr: text(c.qr) }
     }
+    case 'open-payments': {
+      const payee = safeHref(text(c.payee))
+      const amount = text(c.amount)
+      const assetCode = text(c.assetCode)
+      return payee && amount && assetCode ? { kind: 'open-payments', payee, amount, assetCode } : { kind: 'unsupported' }
+    }
     default:
       return { kind: 'unsupported' }
+  }
+}
+
+/** A wallet address as the person may type it: an https URL, or a `$` payment pointer (which means https). */
+export function walletAddressValid(v: string): boolean {
+  const t = v.trim()
+  const url = t.startsWith('$') ? `https://${t.slice(1)}` : t
+  try {
+    const u = new URL(url)
+    return u.protocol === 'https:' && !!u.hostname && !u.username && !u.password
+  } catch {
+    return false
   }
 }

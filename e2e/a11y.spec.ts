@@ -45,6 +45,10 @@ defineA11ySuite(
       await consoleAt(page, 'Overview')
       await expect(page.getByRole('heading', { name: 'Switches' })).toBeVisible()
     },
+    'console refunds': async (page) => {
+      await consoleAt(page, 'Refunds')
+      await expect(page.getByRole('heading', { name: 'Record the refund' })).toBeVisible()
+    },
     'console reports': async (page) => {
       await consoleAt(page, 'Reports')
       await expect(page.getByRole('article', { name: 'A scam or fraud: spammy' })).toBeVisible()

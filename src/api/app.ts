@@ -20,8 +20,7 @@ import type {
   SignupStartBody,
   Statements,
   TxtRecord,
-  WalletChallenge,
-} from './types.js'
+  WalletChallenge, OpenPaymentsFinished, OpenPaymentsRedirect } from './types.js'
 import type { Issue } from './errors.js'
 
 const enc = encodeURIComponent
@@ -69,6 +68,15 @@ export function appApi(http: Http) {
     billing: () => http.get<Billing>('/api/v1/billing'),
     createCheckout: (method: string, months: number) => http.post<CheckoutStarted>('/api/v1/billing/checkouts', { method, months }),
     checkout: (id: string) => http.get<CheckoutStatus>(`/api/v1/billing/checkouts/${enc(id)}`),
+    /** Open Payments: the buyer's wallet address (a URL or a `$` payment pointer); answers where to approve the payment. */
+    openPaymentsWallet: (id: string, walletAddress: string) =>
+      http.post<OpenPaymentsRedirect>(`/api/v1/billing/checkouts/${enc(id)}/open-payments`, { walletAddress }),
+    /** Open Payments: back from the wallet, with the values it added to the return address. */
+    openPaymentsFinish: (id: string, hash: string, interactRef: string) =>
+      http.post<OpenPaymentsFinished>(`/api/v1/billing/checkouts/${enc(id)}/open-payments/finish`, { hash, interactRef }),
+    /** Ask for a refund of a payment that arrived after its checkout closed. */
+    refundRequest: (eventId: string, reason?: string) =>
+      http.post<{ refundRequest: string; status: string }>(`/api/v1/billing/events/${enc(eventId)}/refund-request`, reason ? { reason } : {}),
 
     domains: () => http.get<Domains>('/api/v1/domains'),
     addDomain: (hostname: string) => http.post<{ hostname: string; record: TxtRecord }>('/api/v1/domains', { hostname }),

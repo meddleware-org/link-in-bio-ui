@@ -10,7 +10,11 @@ import { useApp } from '../../context.js'
 import { planCheckout, type CheckoutPlan } from '../../lib/checkout.js'
 import { day, money, plural, when } from '../../lib/format.js'
 
-const props = defineProps<{ returning?: string | null }>()
+const props = defineProps<{
+  returning?: string | null
+  /** Back from an Open Payments wallet: what it added to the return address (`hash`, `interact_ref`), or null. */
+  openPaymentsReturn?: { hash: string | null; interactRef: string | null } | null
+}>()
 const { api, refreshMe } = useApp()
 
 const billing = shallowRef<Billing | null>(null)
@@ -30,7 +34,43 @@ async function load(): Promise<void> {
     problem.value = describeError(e)
   }
 }
-onMounted(load)
+onMounted(async () => {
+  await load()
+  await finishOpenPayments()
+})
+
+/** Back from the wallet: finish the payment (the service checks the wallet's hash), then follow the checkout as usual. */
+async function finishOpenPayments(): Promise<void> {
+  const back = props.openPaymentsReturn
+  if (!props.returning || !back) return
+  if (!back.hash || !back.interactRef) {
+    problem.value = 'The payment was not approved in your wallet, so nothing was paid. You can start again.'
+    checkout.value = null
+    return
+  }
+  try {
+    await api.openPaymentsFinish(props.returning, back.hash, back.interactRef)
+  } catch (e) {
+    problem.value = describeError(e)
+  }
+}
+
+/** Refund requests for payments that arrived after their checkout closed (credited as months unless a refund is asked for). */
+const refundBusy = ref('')
+const refundDone = ref('')
+async function askRefund(eventId: string): Promise<void> {
+  refundBusy.value = eventId
+  problem.value = ''
+  try {
+    await api.refundRequest(eventId)
+    refundDone.value = 'Refund requested. The months it added are taken back when the refund is sent.'
+    await load()
+  } catch (e) {
+    problem.value = describeError(e)
+  } finally {
+    refundBusy.value = ''
+  }
+}
 
 const offer = computed(() => billing.value?.offers.find((o) => o.id === method.value) ?? null)
 const monthOptions = computed(() => {
@@ -108,6 +148,11 @@ const KIND: Record<string, string> = { purchase: 'Payment', grant: 'Given by the
 
       <div class="history">
         <h3 id="history-title">Past payments</h3>
+        <p v-if="billing.events.some((e) => e.unapplied)">
+          A payment that arrives after its checkout was paid or closed is credited as the months it was for. You can ask for a refund
+          of it instead, within 30 days.
+        </p>
+        <UiNotice v-if="refundDone" type="ok" :message="refundDone" />
         <UiDataTable caption="Past payments" :rows="billing.events.length" empty="No payments yet.">
           <template #head>
             <th scope="col">Date</th>
@@ -115,6 +160,7 @@ const KIND: Record<string, string> = { purchase: 'Payment', grant: 'Given by the
             <th scope="col">Months</th>
             <th scope="col">Amount</th>
             <th scope="col">Paid until after</th>
+            <th scope="col">Refund</th>
           </template>
           <tr v-for="(e, i) in billing.events" :key="i">
             <th scope="row">{{ when(e.at) }}</th>
@@ -122,6 +168,19 @@ const KIND: Record<string, string> = { purchase: 'Payment', grant: 'Given by the
             <td>{{ e.months }}</td>
             <td>{{ e.amountPence ? money(e.amountPence, billing.currency) : '—' }}</td>
             <td>{{ day(e.paidUntil) }}</td>
+            <td>
+              <template v-if="e.refundRequest">{{ e.refundRequest.status === 'refunded' ? 'Refunded' : 'Requested' }}</template>
+              <UiButton
+                v-else-if="e.refundableUntil"
+                variant="secondary"
+                :busy="refundBusy === e.id"
+                :aria-label="`Ask for a refund of the payment of ${when(e.at)} (arrived after its checkout closed; possible until ${day(e.refundableUntil)})`"
+                @click="askRefund(e.id)"
+              >
+                Ask for a refund
+              </UiButton>
+              <template v-else>—</template>
+            </td>
           </tr>
         </UiDataTable>
       </div>

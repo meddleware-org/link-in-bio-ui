@@ -117,6 +117,12 @@ export class FakeService {
   ]
   selections: Body[] = [{ id: 's0000001-0000-4000-8000-000000000001', name: 'Long-standing', criteria: { minAgeDays: 90, published: true, paid: null, inviteesInGoodStanding: true, tag: null }, createdBy: 'operator:op', createdAt: NOW }]
   nextId = 100
+  refundAsked = false
+  walletAddress: unknown = null
+  finished: unknown = null
+  refunds: Body[] = [
+    { id: 'q0000001-0000-4000-8000-000000000001', account: 'a0000001-0000-4000-8000-000000000001', handle: 'ada', event: 'e0000001-0000-4000-8000-000000000002', provider: 'chain-payments', months: 1, amountPence: 300, paidAt: NOW, reason: 'I paid twice by mistake.', status: 'open', createdAt: NOW, refundReference: null, refundEvent: null, decidedBy: null, decidedAt: null, payment: { digest: '4JFuen7pDZCzqdRwUmB4oCwbeJ7Xqw5DqBsupvwyX1wb', payer: '0x' + 'a9'.repeat(32), coinType: '0xa1ec::usdc::USDC', amount: '3965894', method: 'sui-testnet:USDC', checkout: 'c0000001-0000-4000-8000-000000000009' } },
+  ]
 
   private id(): string {
     return `00000000-0000-4000-8000-${String(this.nextId++).padStart(12, '0')}`
@@ -327,8 +333,23 @@ export class FakeService {
           { id: 'square:card', provider: 'square', label: 'Card', seller: 'operator', fees: { fixedPence: 25, percentBps: 175 }, recurring: false, minMonths: 4, maxMonths: 12 },
         ],
         notes: [],
-        events: [{ provider: 'chain-payments', kind: 'purchase', months: 3, amountPence: 900, at: '2026-09-16T12:00:00Z', paidUntil: '2026-12-16T12:00:00Z' }],
+        events: [
+          { id: 'e0000001-0000-4000-8000-000000000001', provider: 'chain-payments', kind: 'purchase', months: 3, amountPence: 900, at: '2026-09-16T12:00:00Z', paidUntil: '2026-12-16T12:00:00Z', unapplied: false, refundableUntil: null, refundRequest: null },
+          { id: 'e0000001-0000-4000-8000-000000000002', provider: 'chain-payments', kind: 'purchase', months: 1, amountPence: 300, at: '2026-11-10T12:00:00Z', paidUntil: '2027-01-16T12:00:00Z', unapplied: true, refundableUntil: '2026-12-10T12:00:00Z', refundRequest: this.refundAsked ? { id: 'q1', status: 'open', refundReference: null, at: NOW, decidedAt: null } : null },
+        ],
       })
+    }
+    if (/^\/api\/v1\/billing\/events\/[^/]+\/refund-request$/.test(path) && method === 'POST') {
+      this.refundAsked = true
+      return ok({ refundRequest: 'q1', status: 'open', event: path.split('/')[5] }, 201)
+    }
+    if (/^\/api\/v1\/billing\/checkouts\/[^/]+\/open-payments$/.test(path) && method === 'POST') {
+      this.walletAddress = b.walletAddress
+      return ok({ kind: 'open-payments', step: 'redirect', redirect: 'https://wallet.example/approve?id=1', wallet: 'https://wallet.example/alice', debitAmount: { value: '600', assetCode: 'GBP', assetScale: 2 }, receiveAmount: { value: '600', assetCode: 'GBP', assetScale: 2 } })
+    }
+    if (/^\/api\/v1\/billing\/checkouts\/[^/]+\/open-payments\/finish$/.test(path) && method === 'POST') {
+      this.finished = b
+      return ok({ checkout: path.split('/')[5], status: 'open', outgoingPayment: 'https://wallet.example/outgoing/1' })
     }
     if (path === '/api/v1/billing/checkouts' && method === 'POST') {
       this.checkoutReads = 0
@@ -364,7 +385,8 @@ export class FakeService {
       return ok({
         accounts: { active: 12, suspended: 1, free: 3, paid: 8 }, pagesPublished: 10, reports: { open: this.reports.filter((r) => r.status === 'open').length, openOver24h: 0 },
         appealsOpen: 1, links: { flagged: 2, unknown: 1 }, storageBytes: 204800, checkoutsOpen: 1,
-        switches: { signup: 'invite', thirdPartyPages: true, billingProviders: ['manual', 'chain-payments'], customHostnameCap: 10, webRisk: false, federation: true },
+        switches: { signup: 'invite', thirdPartyPages: true, billingProviders: ['manual', 'chain-payments'], customHostnameCap: 10, webRisk: false, federation: true, bankFeeds: ['wise'] },
+        bankFeeds: [{ feed: 'wise', polledAt: NOW, lastError: null, creditsSeen: 4 }],
       })
     }
     if (path === '/accounts') return ok({ accounts: accounts.filter((a) => a.handle.startsWith(query.q ?? '')) })
@@ -408,6 +430,14 @@ export class FakeService {
       const a = this.appeals.find((x) => x.id === ad[1])
       if (a) Object.assign(a, { status: b.status, statement: b.statement, decidedAt: NOW, decidedBy: 'operator:op' })
       return none()
+    }
+    if (path === '/refund-requests' && method === 'GET') return ok({ requests: this.refunds.filter((r) => r.status === (query.status ?? 'open')) })
+    const rf = /^\/refund-requests\/([^/]+)\/refunded$/.exec(path)
+    if (rf && method === 'POST') {
+      const r = this.refunds.find((x) => x.id === rf[1])
+      if (!r) return err(404, 'not_found', 'no such request')
+      Object.assign(r, { status: 'refunded', refundReference: b.reference, decidedBy: 'operator:op', decidedAt: NOW })
+      return ok({ request: r, paidUntil: '2026-12-16T12:00:00Z' })
     }
     if (path === '/blocklist' && method === 'GET') return ok({ entries: this.blocklist })
     if (path === '/blocklist' && method === 'POST') {

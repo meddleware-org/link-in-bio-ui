@@ -14,8 +14,7 @@ import type {
   Operator,
   Overview,
   ReportRow,
-  Selection,
-} from './types.js'
+  Selection, RefundRequestRow } from './types.js'
 
 const enc = encodeURIComponent
 const P = '/api/v1/admin'
@@ -48,6 +47,9 @@ export function adminApi(http: Http) {
     decideReport: (id: string, b: { status: 'actioned' | 'dismissed'; decision: string; statement?: string; hideLink: boolean }) =>
       http.post<void>(`${P}/reports/${enc(id)}/decide`, b),
     appeals: (status: string) => http.get<{ appeals: AppealRow[] }>(`${P}/appeals`, { status }),
+    refundRequests: (status: string) => http.get<{ requests: RefundRequestRow[] }>(`${P}/refund-requests`, { status }),
+    recordRefund: (id: string, b: { reference: string; note?: string }) =>
+      http.post<{ request: RefundRequestRow; paidUntil: string | null }>(`${P}/refund-requests/${enc(id)}/refunded`, b),
     decideAppeal: (id: string, b: { status: 'upheld' | 'rejected'; statement: string; reinstate: boolean }) =>
       http.post<void>(`${P}/appeals/${enc(id)}/decide`, b),
 

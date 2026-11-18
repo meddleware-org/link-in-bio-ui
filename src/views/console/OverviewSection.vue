@@ -4,7 +4,7 @@ import { onMounted, ref, shallowRef } from 'vue'
 import { UiBadge, UiLiveStatus, UiNotice, UiStatGrid, UiStatRow } from '@meddleware/ui'
 import { describeError } from '../../api/errors.js'
 import type { Overview } from '../../api/types.js'
-import { bytes } from '../../lib/format.js'
+import { bytes, when } from '../../lib/format.js'
 import { useConsole } from './console.js'
 
 const { api } = useConsole()
@@ -61,6 +61,16 @@ const SIGNUP: Record<string, string> = { closed: 'Closed', invite: 'By invitatio
           </UiStatRow>
           <UiStatRow label="Federation">
             <UiBadge :tone="o.switches.federation ? 'ok' : 'neutral'">{{ o.switches.federation ? 'On' : 'Off' }}</UiBadge>
+          </UiStatRow>
+          <UiStatRow label="Bank feeds">{{ o.switches.bankFeeds?.join(', ') || 'none' }}</UiStatRow>
+        </UiStatGrid>
+      </section>
+      <section v-if="o.bankFeeds?.length" aria-labelledby="ov-feeds">
+        <h3 id="ov-feeds">Bank feeds</h3>
+        <UiStatGrid>
+          <UiStatRow v-for="f in o.bankFeeds" :key="f.feed" :label="f.feed">
+            <UiBadge :tone="f.lastError ? 'danger' : 'ok'">{{ f.lastError ? 'Failing' : 'Working' }}</UiBadge>
+            last read {{ f.polledAt ? when(f.polledAt) : 'never' }}, {{ f.creditsSeen }} credits seen<template v-if="f.lastError">: {{ f.lastError }}</template>
           </UiStatRow>
         </UiStatGrid>
       </section>

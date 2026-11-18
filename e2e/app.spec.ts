@@ -185,3 +185,48 @@ test('every main view fits a phone: no horizontal scroll of the page', async ({ 
   }
   expect(problems).toEqual([])
 })
+
+test('billing: a payment that arrived after its checkout closed can be refunded instead', async ({ page }) => {
+  const { service, problems } = await signedIn(page)
+  await tab(page, 'Billing').click()
+  await expect(page.getByText('credited as the months it was for')).toBeVisible()
+  await page.getByRole('button', { name: /Ask for a refund of the payment/ }).click()
+  await expect(page.getByText('Refund requested.')).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'Requested' })).toBeVisible()
+  expect(service.callsTo('POST', '/api/v1/billing/events/e0000001-0000-4000-8000-000000000002/refund-request')).toHaveLength(1)
+  expect(problems).toEqual([])
+})
+
+test('billing: Open Payments asks for the wallet, goes there, and finishes on the way back', async ({ page }) => {
+  const service = new FakeService()
+  service.checkoutClient = { kind: 'open-payments', step: 'wallet-address', payee: 'https://wallet.example/shop', amount: '6.00', assetCode: 'GBP' }
+  const { problems } = await signedIn(page, service)
+  await tab(page, 'Billing').click()
+  await page.getByRole('radio', { name: /^SUI/ }).check()
+  await page.getByRole('button', { name: 'Continue to payment' }).click()
+  await expect(page.getByText('Pay 6.00 GBP from an Open Payments wallet')).toBeVisible()
+  await page.getByLabel('Your wallet address').fill('notawallet')
+  await page.getByRole('button', { name: 'Continue to your wallet' }).click()
+  await expect(page.getByText('Enter your wallet address')).toBeVisible()
+  await page.getByLabel('Your wallet address').fill('$wallet.example/alice')
+  // A stand-in for the wallet's approval page (outside requests are refused otherwise).
+  await page.route('https://wallet.example/**', (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Wallet</title>' }))
+  await page.getByRole('button', { name: 'Continue to your wallet' }).click()
+  await page.waitForURL('https://wallet.example/approve?id=1')
+  expect(service.walletAddress).toBe('$wallet.example/alice')
+  // The wallet sends the person back with its hash and interaction reference.
+  await open(page, '/billing?checkout=c0000001-0000-4000-8000-000000000001&openPayments=finish&hash=H1&interact_ref=R1', service)
+  await expect.poll(() => service.finished).toEqual({ hash: 'H1', interactRef: 'R1' })
+  expect(problems.filter((p) => !p.includes('wallet.example'))).toEqual([])
+})
+
+test('the console: recording a refund takes the months back', async ({ page }) => {
+  const { service, problems } = await consoleAt(page, 'Refunds')
+  await expect(page.getByRole('article', { name: /^ada: payment of/ })).toBeVisible()
+  await expect(page.getByText('3965894')).toBeVisible()
+  await page.getByLabel('The refund transaction (digest)').fill('8xRefundDigest111111111111111111111111111111')
+  await page.getByRole('button', { name: 'Record the refund' }).click()
+  await expect(page.getByText(/The refund to ada is recorded/)).toBeAttached()
+  expect(service.refunds[0]!.status).toBe('refunded')
+  expect(problems).toEqual([])
+})

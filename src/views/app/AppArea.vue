@@ -41,6 +41,10 @@ const IN_TABS: AppTab[] = [
 const outTab = ref('signin')
 const inTab = ref(props.router.path.value.replace(/\/+$/, '') === '/billing' ? 'billing' : 'page')
 const returning = computed(() => props.router.query.value.get('checkout'))
+const openPaymentsReturn = computed(() => {
+  const q = props.router.query.value
+  return q.get('openPayments') === 'finish' ? { hash: q.get('hash'), interactRef: q.get('interact_ref') } : null
+})
 
 onMounted(async () => {
   try {
@@ -105,7 +109,7 @@ const pageLink = computed(() => safeHref(app.me.value?.pageUrl))
       <AppTabNav v-model="inTab" :tabs="IN_TABS" id-prefix="lib-app" aria-label="Your account" />
       <UiTabPanel id-prefix="lib-app" :tab="inTab" class="app-panel">
         <PageView v-if="inTab === 'page'" @navigate="inTab = $event" />
-        <BillingView v-else-if="inTab === 'billing'" :returning="returning" />
+        <BillingView v-else-if="inTab === 'billing'" :returning="returning" :open-payments-return="openPaymentsReturn" />
         <AccountView v-else @signed-out="app.me.value = null" />
       </UiTabPanel>
     </template>

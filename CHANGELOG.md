@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.2 — 2026-11-18
+
+- **Open Payments checkout:** the person enters their wallet address (`https://` or a `$` payment pointer), approves the
+  payment in their wallet, and finishes on the way back (`/billing?…&openPayments=finish`). The service checks the
+  wallet's hash.
+- **Refunds:** a payment that arrived after its checkout closed (credited as months) has an "Ask for a refund" button
+  until its refund window ends. The console has a Refunds queue showing what to send and to which address, and records
+  the refund transaction.
+- The console overview shows the bank feeds and their last read.
+- `@meddleware/chain-payments-kit` 0.0.2: a signed payment survives a reload.
+- The wallet-address field is labelled (it had no accessible name; caught by the new browser test).
+
 ## 0.0.1 — 2026-11-17
 
 - `@meddleware/chain-payments-client` and `@meddleware/chain-payments-kit` come from npm (`^0.0.1`), no longer from sibling folders.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { pollCheckout, planCheckout } from '../src/lib/checkout.js'
+import { pollCheckout, planCheckout, walletAddressValid } from '../src/lib/checkout.js'
 import type { CheckoutStatus } from '../src/api/types.js'
 
 const st = (status: CheckoutStatus['status']): CheckoutStatus => ({ checkout: 'c-1', status, months: 1, paidUntil: status === 'paid' ? '2027-01-01T00:00:00Z' : null })
@@ -85,3 +85,23 @@ describe('what a started checkout asks for', () => {
     expect(planCheckout(null)).toEqual({ kind: 'unsupported' })
   })
 })
+
+describe('Open Payments', () => {
+  it('reads the checkout only when the payee is an https wallet address and the amount is given', () => {
+    expect(planCheckout({ kind: 'open-payments', step: 'wallet-address', payee: 'https://wallet.example/shop', amount: '6.00', assetCode: 'GBP' })).toEqual({
+      kind: 'open-payments', payee: 'https://wallet.example/shop', amount: '6.00', assetCode: 'GBP',
+    })
+    expect(planCheckout({ kind: 'open-payments', payee: 'javascript:alert(1)', amount: '6.00', assetCode: 'GBP' })).toEqual({ kind: 'unsupported' })
+    expect(planCheckout({ kind: 'open-payments', payee: 'https://wallet.example/shop', assetCode: 'GBP' })).toEqual({ kind: 'unsupported' })
+  })
+
+  it('accepts https wallet addresses and $ payment pointers only', () => {
+    expect(walletAddressValid('https://wallet.example/alice')).toBe(true)
+    expect(walletAddressValid(' $wallet.example/alice ')).toBe(true)
+    expect(walletAddressValid('http://wallet.example/alice')).toBe(false)
+    expect(walletAddressValid('https://user:pw@wallet.example/alice')).toBe(false)
+    expect(walletAddressValid('alice')).toBe(false)
+    expect(walletAddressValid('')).toBe(false)
+  })
+})
+

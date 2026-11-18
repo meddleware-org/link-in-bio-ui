@@ -21,6 +21,7 @@ const SECTIONS: Array<AppTab & { view: Component }> = [
   { id: 'selections', label: 'Selections', view: defineAsyncComponent(() => import('./SelectionsSection.vue')) },
   { id: 'reports', label: 'Reports', view: defineAsyncComponent(() => import('./ReportsSection.vue')) },
   { id: 'appeals', label: 'Appeals', view: defineAsyncComponent(() => import('./AppealsSection.vue')) },
+  { id: 'refunds', label: 'Refunds', view: defineAsyncComponent(() => import('./RefundsSection.vue')) },
   { id: 'blocklist', label: 'Blocklist', view: defineAsyncComponent(() => import('./BlocklistSection.vue')) },
   { id: 'links', label: 'Links', view: defineAsyncComponent(() => import('./LinksSection.vue')) },
   { id: 'audit', label: 'Audit log', view: defineAsyncComponent(() => import('./AuditSection.vue')) },

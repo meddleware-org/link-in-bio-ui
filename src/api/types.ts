@@ -138,13 +138,49 @@ export interface Offer {
   maxMonths: number
 }
 
+export interface RefundRequestState {
+  id: string
+  status: 'open' | 'refunded'
+  refundReference: string | null
+  at: string
+  decidedAt: string | null
+}
+
 export interface BillingEvent {
+  id: string
   provider: string
   kind: 'purchase' | 'grant' | 'refund'
   months: number
   amountPence: number
   at: string
   paidUntil: string | null
+  /** A payment that arrived after its checkout was paid or closed (credited as months). */
+  unapplied?: boolean
+  /** Until when a refund may be asked for, when it may. */
+  refundableUntil?: string | null
+  refundRequest?: RefundRequestState | null
+}
+
+/** Open Payments: what the buyer's wallet will be asked to approve. */
+export interface OpenPaymentsAmount {
+  value: string
+  assetCode: string
+  assetScale: number
+}
+
+export interface OpenPaymentsRedirect {
+  kind: 'open-payments'
+  step: 'redirect'
+  redirect: string
+  wallet: string
+  debitAmount: OpenPaymentsAmount
+  receiveAmount: OpenPaymentsAmount
+}
+
+export interface OpenPaymentsFinished {
+  checkout: string
+  status: CheckoutStatusName
+  outgoingPayment?: string
 }
 
 /** `GET /api/v1/billing`. */
@@ -253,7 +289,29 @@ export interface Overview {
     customHostnameCap: number
     webRisk: boolean
     federation: boolean
+    bankFeeds?: string[]
   }
+  bankFeeds?: { feed: string; polledAt: string | null; lastError: string | null; creditsSeen: number }[]
+}
+
+/** A refund request in the console's queue: what the refund must match, and how it was settled. */
+export interface RefundRequestRow {
+  id: string
+  account: string
+  handle: string
+  event: string
+  provider: string
+  months: number
+  amountPence: number
+  paidAt: string
+  reason: string | null
+  status: 'open' | 'refunded'
+  createdAt: string
+  refundReference: string | null
+  refundEvent: string | null
+  decidedBy: string | null
+  decidedAt: string | null
+  payment: { digest: string | null; payer: string | null; coinType: string | null; amount: string | null; method: string | null; checkout: string | null } | null
 }
 
 export interface AccountRow {

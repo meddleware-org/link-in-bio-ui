@@ -3,11 +3,12 @@
 // payment page (a plain link: the person pays there and comes back to `/billing?checkout=<id>`), or a bank transfer's details. The
 // account is paid only when the service says so, so the panel then asks the service until the checkout is no longer open.
 import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
-import { UiButton, UiCodeBlock, UiCopyButton, UiLiveStatus, UiNotice } from '@meddleware/ui'
+import { safeHref } from '@meddleware/web-utils'
+import { UiButton, UiCodeBlock, UiCopyButton, UiLiveStatus, UiNotice, UiTextField } from '@meddleware/ui'
 import { describeError } from '../api/errors.js'
 import type { CheckoutStatus } from '../api/types.js'
 import { useApp } from '../context.js'
-import { pollCheckout, type CheckoutPlan } from '../lib/checkout.js'
+import { pollCheckout, walletAddressValid, type CheckoutPlan } from '../lib/checkout.js'
 import { day } from '../lib/format.js'
 import { getSuiClient, signAndExecute } from '../wallet.js'
 import WalletControl from './WalletControl.vue'
@@ -64,6 +65,29 @@ onMounted(() => {
 })
 onBeforeUnmount(() => stop?.abort())
 
+// Open Payments: the person names their wallet; the service asks that wallet for a quote and an approval, then the browser goes
+// to the wallet to approve it (a full-page navigation, never a frame). The wallet sends the person back to /billing.
+const wallet = ref('')
+const walletBusy = ref(false)
+const walletProblem = ref('')
+async function toWallet(): Promise<void> {
+  walletProblem.value = ''
+  if (!walletAddressValid(wallet.value)) {
+    walletProblem.value = 'Enter your wallet address: https://… or a payment pointer starting with $.'
+    return
+  }
+  walletBusy.value = true
+  try {
+    const r = await api.openPaymentsWallet(props.checkoutId, wallet.value.trim())
+    const to = safeHref(r.redirect)
+    if (!to || !to.startsWith('https://')) throw new Error('Your wallet did not give an https address to approve the payment at.')
+    window.location.assign(to)
+  } catch (e) {
+    walletProblem.value = describeError(e)
+    walletBusy.value = false
+  }
+}
+
 const sign = (tx: unknown) => signAndExecute(tx as Parameters<typeof signAndExecute>[0])
 // The kit reads the platform fee from the chain with the wallet adapter's client, before the wallet opens.
 const suiClient = getSuiClient()
@@ -118,6 +142,25 @@ const suiClient = getSuiClient()
         <UiCodeBlock :code="plan.qr" label="EPC payment payload" />
       </div>
       <p><UiButton variant="secondary" @click="checkOnce">Check whether it has arrived</UiButton></p>
+    </template>
+
+    <template v-else-if="plan?.kind === 'open-payments'">
+      <p>
+        Pay {{ plan.amount }} {{ plan.assetCode }} from an Open Payments wallet. Your wallet shows the exact amount and asks you to
+        approve it, then sends you back here.
+      </p>
+      <form class="wallet" novalidate @submit.prevent="toWallet">
+        <UiTextField
+          id="op-wallet"
+          v-model="wallet"
+          label="Your wallet address"
+          hint="For example https://wallet.example/alice or $wallet.example/alice"
+          autocomplete="off"
+          spellcheck="false"
+          :error="walletProblem"
+        />
+        <p><UiButton type="submit" :busy="walletBusy">Continue to your wallet</UiButton></p>
+      </form>
     </template>
 
     <UiNotice v-else-if="plan" type="info" message="This payment method is not available in this app yet." />
