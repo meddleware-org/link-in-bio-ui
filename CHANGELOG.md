@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.2 — 2026-11-18
 
 - First-pass audit (`docs/audit/link-in-bio-ui-audit.md`).
 - Every request has a 30-second deadline; a stalled one ends as "The server could not be reached".
@@ -11,9 +11,6 @@
 - The uploaded picture's URL passes `safePath`/`safeHref` before it is shown.
 - The image build runs the production-bundle scan (`check:dist`), as CI does.
 - The accessibility sweep covers 26 states (was 9), and a browser test records every request the local editor makes.
-
-## 0.0.2 — 2026-11-18
-
 - **Open Payments checkout:** the person enters their wallet address (`https://` or a `$` payment pointer), approves the
   payment in their wallet, and finishes on the way back (`/billing?…&openPayments=finish`). The service checks the
   wallet's hash.
