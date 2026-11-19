@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+- CI: `HOME=/root` is set on the browser-test command only, not the whole job, so the runner no longer warns that it cannot read
+  `/root/.docker/config.json`.
+- `overrides.chrome-launcher: ^1.2.3`: Lighthouse CI (`@lhci/cli` 0.16.1, the newest) still asks for chrome-launcher 0.13, which pulls
+  the deprecated `rimraf` 3, `glob` 7 and `inflight`; 1.2.3 drops them and Lighthouse CI runs unchanged (checked locally). Remove the
+  override when `@lhci/cli` moves to chrome-launcher 1.
+
 ## [0.0.6] - 2026-11-19
 
 - Shared packages for the storage rule (D134): nothing is stored before the visitor acts (`@meddleware/ui` remembers the colour
