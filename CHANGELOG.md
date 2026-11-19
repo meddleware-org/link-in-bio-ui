@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.4 — 2026-11-19
+
+- The crypto checkout knows the instance's network (`@meddleware/chain-payments-kit` 0.0.3, `network` prop): a checkout
+  for another network says "This checkout is for Sui testnet; this app is on Sui mainnet." and never asks the wallet
+  (FU-0144), with a browser test on a mainnet instance in all five browsers.
+- CI runs the browser tests one project per job in Playwright's image, with the runner's fonts (D129).
+
 ## 0.0.3 — 2026-11-18
 
 - Refunds on request, for link-in-bio-service 0.0.5 (D126): Billing shows what may come back now, as the service works it out

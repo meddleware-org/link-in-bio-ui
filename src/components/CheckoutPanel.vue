@@ -20,7 +20,7 @@ const emit = defineEmits<{ settled: [status: CheckoutStatus] }>()
 
 const ChainCheckout = defineAsyncComponent(async () => (await import('@meddleware/chain-payments-kit')).ChainCheckout)
 
-const { api } = useApp()
+const { api, instance } = useApp()
 const result = ref<CheckoutStatus | null>(null)
 const following = ref(false)
 const stillOpen = ref(false)
@@ -121,6 +121,7 @@ const suiClient = getSuiClient()
         :sui-client="suiClient"
         :sign-and-execute="sign"
         :level="4"
+        :network="instance?.suiNetwork"
         @paid="watchPayment"
         @failed="kitFailed"
       />

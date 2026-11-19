@@ -175,6 +175,20 @@ test('billing: paying for months with Chain Payments opens its checkout', async 
   expect(problems).toEqual([])
 })
 
+test('billing: a checkout for another network than the app says so and never asks the wallet', async ({ page }) => {
+  const service = new FakeService()
+  service.suiNetwork = 'mainnet'
+  const { problems } = await signedIn(page, service)
+  await tab(page, 'Billing').click()
+  await page.getByRole('radio', { name: /^SUI/ }).check()
+  await page.getByRole('button', { name: 'Continue to payment' }).click()
+  await expect(page.getByRole('heading', { name: 'Pay with crypto' })).toBeVisible()
+  await expect(page.getByText(/This checkout is for Sui testnet; this app is on Sui mainnet\./)).toBeVisible()
+  await page.getByRole('button', { name: 'Get the exact price' }).click()
+  await expect(page.getByRole('button', { name: 'Pay with your wallet' })).toBeDisabled()
+  expect(problems).toEqual([])
+})
+
 test('the console: deciding a report in the queue', async ({ page }) => {
   const { service, problems } = await consoleAt(page, 'Reports')
   const report = page.getByRole('article', { name: 'A scam or fraud: spammy' })

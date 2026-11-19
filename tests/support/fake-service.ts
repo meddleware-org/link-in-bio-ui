@@ -140,6 +140,8 @@ export class FakeService {
     { id: 'q0000002-0000-4000-8000-000000000002', kind: 'unstarted', status: 'declined', reason: '', at: '2026-10-01T12:00:00Z', decidedAt: '2026-10-02T12:00:00Z', refundReference: null, details: { months: 1, note: 'The month had begun by the time it was looked at; ask again for the months still unstarted.' }, lines: [] },
   ]
   refundAsks: Body[] = []
+  /** The network the instance's wallet is on (GET /api/v1/instance). */
+  suiNetwork = 'testnet'
   walletAddress: unknown = null
   /** Where the Open Payments wallet sends the browser to approve the payment. */
   openPaymentsRedirect = 'https://wallet.example/approve?id=1'
@@ -236,7 +238,7 @@ export class FakeService {
       return ok({
         product: 'Example Links', version: '0.0.1', appHost: 'app.example.link', pagesDomain: 'example.link', signup: this.signup, thirdPartyPages: true,
         termsVersion: '2026-11', minimumAge: 18, pricePence: 300, currency: 'GBP', billingProviders: ['manual', 'chain-payments'], customDomains: true,
-        federation: true, authenticators: ['passkey', 'sui-wallet', 'recovery-code'], suiNetwork: 'testnet',
+        federation: true, authenticators: ['passkey', 'sui-wallet', 'recovery-code'], suiNetwork: this.suiNetwork,
       })
     }
     if (path === '/api/v1/signup/start' && method === 'POST') {
