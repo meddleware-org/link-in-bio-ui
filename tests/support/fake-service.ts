@@ -238,7 +238,7 @@ export class FakeService {
       return ok({
         product: 'Example Links', version: '0.0.1', appHost: 'app.example.link', pagesDomain: 'example.link', signup: this.signup, thirdPartyPages: true,
         termsVersion: '2026-11', minimumAge: 18, pricePence: 300, currency: 'GBP', billingProviders: ['manual', 'chain-payments'], customDomains: true,
-        federation: true, authenticators: ['passkey', 'sui-wallet', 'recovery-code'], suiNetwork: this.suiNetwork,
+        federation: true, authenticators: ['passkey', 'sui-wallet', 'recovery-code'], suiNetwork: this.suiNetwork, suiRpcUrl: this.suiNetwork === 'mainnet' ? 'https://fullnode.mainnet.sui.io:443' : 'https://fullnode.testnet.sui.io:443',
       })
     }
     if (path === '/api/v1/signup/start' && method === 'POST') {

@@ -4,7 +4,7 @@
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { AppTabNav, UiButton, UiLiveStatus, UiNotice, UiTabPanel, type AppTab } from '@meddleware/ui'
 import { safeHref } from '@meddleware/web-utils'
-import { useNetwork, type MwNetwork } from '@meddleware/wallet-adapter'
+import { applyInstanceNetwork } from '../../lib/network.js'
 import { describeError } from '../../api/errors.js'
 import type { Http } from '../../api/http.js'
 import type { Account } from '../../api/types.js'
@@ -51,7 +51,7 @@ onMounted(async () => {
     const instance = await app.api.instance()
     app.instance.value = instance
     emit('product', instance.product)
-    if (['testnet', 'mainnet', 'localnet'].includes(instance.suiNetwork)) useNetwork().setNetwork(instance.suiNetwork as MwNetwork)
+    applyInstanceNetwork(instance)
     await app.refreshMe()
   } catch (e) {
     problem.value = describeError(e)

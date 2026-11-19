@@ -21,6 +21,8 @@ export interface Instance {
   federation: boolean
   authenticators: string[]
   suiNetwork: string
+  /** The Sui full node the wallet uses for `suiNetwork` (the service's SUI_RPC_URL; the public one by default; null for localnet). */
+  suiRpcUrl?: string | null
 }
 
 /** `GET /api/v1/limits`: every bound the page parser enforces. */

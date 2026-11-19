@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.5 — 2026-11-19
+
+- The Sui full node is configurable at every level (FU-0144 OQ1): the app applies the instance's `suiRpcUrl`
+  (link-in-bio-service 0.0.7 `SUI_RPC_URL`) to the wallet adapter (`@meddleware/wallet-adapter` 0.0.24 `setRpcUrl`), before
+  selecting the network; the image builds on static-server 0.1.13, whose `CSP_CONNECT_SRC_EXTRA` adds the same origin to
+  `connect-src` at start-up (checked; an invalid value stops the server). The smoke test checks both.
+
 ## 0.0.4 — 2026-11-19
 
 - The crypto checkout knows the instance's network (`@meddleware/chain-payments-kit` 0.0.3, `network` prop): a checkout

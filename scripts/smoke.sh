@@ -118,4 +118,20 @@ fetch POST /
 [ "$code" = 405 ] || fail "POST / answered ${code}, want 405"
 security_headers POST /
 
+# Run-time origins (static-server's CSP_CONNECT_SRC_EXTRA, which the deployment fills from the service's SUI_RPC_URL): a full node
+# given at start-up joins connect-src, and a value that is not a bare https origin stops the server instead of widening the policy.
+extra="$("$engine" run -d --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -e CSP_CONNECT_SRC_EXTRA=https://sui.example:8443 -p 127.0.0.1::8080 "$image")"
+sleep 1
+eport="$("$engine" port "$extra" 8080/tcp | head -n 1)"
+ecsp="$(curl -sS -D - -o /dev/null "http://${eport}/" | grep -i '^content-security-policy:' | tr -d '\r')"
+"$engine" rm -f "$extra" > /dev/null 2>&1 || true
+printf '%s' "$ecsp" | grep -Eq "connect-src 'self'[^;]* https://sui\.example:8443( |;)" \
+  || fail "CSP_CONNECT_SRC_EXTRA did not reach connect-src: ${ecsp}"
+bad="$("$engine" run -d --read-only --cap-drop ALL -e "CSP_CONNECT_SRC_EXTRA=https://sui.example/;script-src *" "$image")"
+sleep 2
+state="$("$engine" inspect --format '{{.State.Status}} {{.State.ExitCode}}' "$bad" 2>/dev/null || true)"
+"$engine" rm -f "$bad" > /dev/null 2>&1 || true
+[ "$state" = "exited 2" ] || fail "an invalid CSP_CONNECT_SRC_EXTRA must stop the server (exit 2); the container is: ${state}"
+
 echo "smoke test passed (${engine}, ${image})"

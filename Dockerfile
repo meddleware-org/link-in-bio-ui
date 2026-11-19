@@ -6,10 +6,17 @@
 #   VITE_TERMS_URL         — the terms of service (sign-up and the footer)
 #   VITE_PRIVACY_URL       — the privacy notice (the footer)
 #   CHAIN_PAYMENTS_ORIGIN  — the Chain Payments public origin the checkout widget calls (https://…, no path)
-#   SUI_RPC_ORIGIN         — the Sui full node origin the wallet's transactions go through (the one the wallet adapter uses for the
-#                            instance's network, https://…, no path)
+#   SUI_RPC_ORIGIN         — the Sui full node origin the image's policy allows by default (https://…, no path)
 # The account API is same-origin (/api/v1), so connect-src is 'self' plus exactly those two origins. Everything else about the
 # deployment (product name, hosts, price, sign-up mode, Sui network) comes from GET /api/v1/instance at run time.
+#
+# The full node is configurable at every level, and the levels agree by construction:
+#   build      SUI_RPC_ORIGIN (above) puts an origin in the image's default policy;
+#   container  CSP_CONNECT_SRC_EXTRA (static-server 0.1.13) adds origins to connect-src at start-up, each checked to be a bare
+#              https origin (an invalid value stops the server, so nothing can widen the policy further);
+#   service    SUI_RPC_URL (link-in-bio-service 0.0.7; the public full node by default) is what the app's wallet uses: the
+#              instance reports it as suiRpcUrl and the app applies it (wallet-adapter setRpcUrl);
+#   deployment the overlay gives SUI_RPC_URL to the service and the same value to this container as CSP_CONNECT_SRC_EXTRA.
 ARG CHAIN_PAYMENTS_ORIGIN=""
 ARG SUI_RPC_ORIGIN=""
 ARG CSP="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ${CHAIN_PAYMENTS_ORIGIN} ${SUI_RPC_ORIGIN}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
@@ -45,7 +52,7 @@ ARG CSP
 RUN npx mw-check-csp-inline "${CSP}" dist
 
 # ── runtime stage ─────────────────────────────────────────────────────────────
-FROM quay.io/meddleware-org/static-server:0.1.12@sha256:f2cdfac6c795ee8a442e144e9c2d9eabbbe6566c41fdc696fe3befe2aa8d052d
+FROM quay.io/meddleware-org/static-server:0.1.13@sha256:0952b3c64403ccd340827a13f2a4d96beed756a06edb6d5addac7697864e5b5d
 ARG CSP
 ENV CONTENT_SECURITY_POLICY="${CSP}"
 
