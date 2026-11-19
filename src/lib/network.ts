@@ -12,5 +12,6 @@ export function applyInstanceNetwork(instance: Pick<Instance, 'suiNetwork' | 'su
   const n = instance.suiNetwork
   if (!NETWORKS.includes(n)) return
   if (n === 'testnet' || n === 'mainnet') net.setRpcUrl(n, instance.suiRpcUrl ?? null)
-  net.setNetwork(n as MwNetwork)
+  // The instance's network, not the person's choice: nothing is stored for it (workspace docs/legal STORAGE_LEDGER B4).
+  net.setNetwork(n as MwNetwork, { keep: false })
 }

@@ -1,6 +1,6 @@
 // The instance's network and full node reach the shared wallet adapter: the operator's node for testnet or mainnet, the public one
 // when none is given, and an invalid one is refused loudly.
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { rpcUrlFor, useNetwork } from '@meddleware/wallet-adapter'
 import { applyInstanceNetwork } from '../src/lib/network.js'
 
@@ -25,4 +25,16 @@ describe('applyInstanceNetwork', () => {
     applyInstanceNetwork({ suiNetwork: 'devnet', suiRpcUrl: 'https://sui.example' })
     expect(useNetwork().network.value).toBe(before)
   })
+
+  it("stores nothing in the browser for the instance's network (it is not the person's choice: STORAGE_LEDGER B4)", () => {
+    const written: string[] = []
+    const storage = { getItem: () => null, setItem: (k: string) => void written.push(k), removeItem: () => {} }
+    vi.stubGlobal('sessionStorage', storage)
+    vi.stubGlobal('localStorage', storage)
+    applyInstanceNetwork({ suiNetwork: 'mainnet' })
+    applyInstanceNetwork({ suiNetwork: 'testnet' })
+    expect(written).toEqual([])
+  })
 })
+
+afterEach(() => vi.unstubAllGlobals())
