@@ -1,6 +1,6 @@
 {
   "name": "@meddleware/link-in-bio-ui",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": true,
   "description": "Link in Bio app: sign-up and sign-in (passkey, Sui wallet, recovery code), the page editor, billing, the account, the report form, the operator console and the local editor. Vue 3 SPA on @meddleware/ui; exports LinkInBioView.",
   "author": "Meddleware",
