@@ -61,3 +61,7 @@ npm run shots          # screenshots to test-results/shots, for looking
 ## Licence
 
 0BSD — see [LICENSE](LICENSE).
+
+## Open standards
+
+What this project speaks, what is planned and where you can extend it: [docs/INTEROP.md](docs/INTEROP.md).

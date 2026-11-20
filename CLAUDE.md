@@ -71,3 +71,7 @@ npx playwright install chromium && npm run test:e2e    # E2E_BROWSERS=all for fi
 npm run shots
 docker build -t link-in-bio-ui:ci . && bash scripts/smoke.sh link-in-bio-ui:ci
 ```
+
+## Interoperability
+
+- [docs/INTEROP.md](docs/INTEROP.md): the standards this project speaks, what is planned, where to extend it, and what proves each claim.
