@@ -19,7 +19,7 @@
   forms, and renders other people's text. It decides nothing (every rule, price, permission and payment outcome is the service's or
   the chain's) and holds no credential, so a defect can mislead a person or misroute a navigation, not take money or an account.
   Realised ceiling at this pass: **Low** (no Medium finding).
-**Status:** first-pass baseline
+**Status:** Part B documentation pass 2026-11-26 (F28 RESOLVED, unreleased); first-pass baseline
 
 **Build tool:** vite 8.3.8, `@vitejs/plugin-vue` 6.0.11, vue 3.5.45 (`meddlewareApp` from `@meddleware/frontend-config` 0.0.11)
 **Hosting:** container image on static-server 0.1.12 (`CONTENT_SECURITY_POLICY` from the Dockerfile `ARG CSP`); `vite preview`
@@ -550,6 +550,34 @@ since F6 in the image build. The e2e build goes to `dist-e2e/`, never `dist/`.
   - `THIRD_PARTY_LICENSES` is served.
 - Dependabot covers npm, docker and Actions.
 
+### F28 — Drift: no `CONTRIBUTING.md`, most declarations, workflows and files undocumented
+**Severity:** Low   **Disposition:** RESOLVED (2026-11-26, unreleased)
+**Where:** the repository had no `CONTRIBUTING.md`, and most files (the configurations, the workflows, the scripts, the components' templates and styles, the tests and the e2e helpers) had no header or line-level comments.
+**Remediation / evidence:** `CONTRIBUTING.md` is written; every file carries a header and line-level comments and every declaration a doc comment (`node scripts/check-docs.mjs --report link-in-bio-ui` in the workspace: all 100 measured files meet the standard). The files synced from `@meddleware/frontend-config` (dependabot, postcss, stylelint, the allow-list) were refreshed from its commented templates with `npx mw-sync --write`; they match the published package only after that package's next release (Phase 5). The built bundle is unchanged: every built file is identical to the previous commit's once the scoped-style and chunk hashes are normalised.
+
+## Part B documentation pass (2026-11-26)
+
+Scope: every tracked file of the repository (106 files, 100 measured by the documentation standard's file measure, 3 excluded: the lockfile, `LICENSE` and the generated `docs/INTEROP.md`) read against the workspace's `docs/operations/DOCUMENTATION_STANDARD.md` and annotated (Part B Phase 1, the forty-first, the tenth frontend app repository repository); the DOCS, RFC, IOP, PRIV and CONF lenses applied for the first time.
+After: `npm ci` (Node 26), `npm run type-check`, `npm run lint`, `npm test` (139 passed), `npm run build`, `npm run check:dist`, `npm run check:csp` and `npm run test:e2e` on Chromium (450 passed, the shared storage suite included). The documentation change is comment-only apart from what the findings above record: every built file is identical to the previous commit's once the scoped-style and chunk hashes are normalised.
+**Not run here:** the four other browser projects, Lighthouse CI and the image build with `scripts/smoke.sh` (they need the CI image, Docker or network access; the changes to those files are comments).
+
+**Front matter (DOCS, RFC, IOP, PRIV and CONF lenses, added 2026-11-26):**
+
+| Field | Value |
+| --- | --- |
+| Documentation status | ledger (workspace `docs/audit/DOCS_LEDGER.tsv`): 106 tracked files, 100 measured and meeting the standard, 3 excluded (the lockfile, `LICENSE` and the generated `docs/INTEROP.md`), the rest data |
+| Required documents | README, CHANGELOG, SECURITY, CONTRIBUTING (added 2026-11-26), LICENSE (0BSD), CLAUDE.md, AGENTS.md: all present |
+| Doc lints | `check-docs.mjs` (workspace) is the gate. The shared `eslint-plugin-jsdoc` fragment is switched on here after the Phase 5 release of `@meddleware/frontend-config` |
+| Standards spoken | Content Security Policy (W3C), sent as a header; HTTP Strict Transport Security (RFC 6797); Web App Manifest (W3C); Robots Exclusion Protocol (RFC 9309) at /robots.txt; llms.txt (a community convention, not a formal standard); WCAG 2.2 level AA with AAA contrast (W3C), tested on every change; No cookie and no browser storage before an action, tested on every change; RFC 3339 timestamps; Wallet Standard (connects any compatible wallet, through @meddleware/wallet-adapter); Web Authentication passkeys (W3C), in the service (the list is `docs/INTEROP.md`, generated from the platform's interoperability map) |
+| Deviations | none |
+| Drafts relied on | none |
+| Personal data | none held by this repository; no cookie of its own: the session is the service's cookie, which the browser keeps and this code never reads or sends by hand. The instance's network is applied without being stored (it is not the person's choice; STORAGE_LEDGER B4). The colour mode is the shared package's and is stored only after the visitor ticks "Remember on this device". A connected wallet is held by the shared wallet singleton. Personal data the forms send to the service (a handle, a passkey, a wallet address, a country, a report's optional contact address, an appeal) is held by the service, not here. Nothing is stored before the visitor acts (the shared `e2e/storage.spec.ts` checks it) |
+| Requests to other hosts | its own origin only for the account, the page and the console: the service under `/api/v1` (a relative path, never another host). While a person pays it also reaches the Chain Payments origin and the Sui full node the instance names (the two origins the image's Content-Security-Policy is built with); a payment provider's own page and an Open Payments wallet are full-page navigations the person follows, never requests the page makes. The sandboxed preview frame loads the service's own rendering of the page and can reach nothing |
+| Dependencies and exit | `link-in-bio-service` (the API), Chain Payments (`@meddleware/chain-payments-kit` and `-client`, and the service behind them), the Sui full nodes, the wallet (Wallet Standard, through `@meddleware/wallet-adapter`), the browser's WebAuthn for passkeys, the access gate in front of the operator console (Part F plans its replacement), `@meddleware/ui`, `web-utils` and the design tokens; the static-server image; Cloudflare; quay.io, Docker Hub and the self-hosted registry; GitHub Actions, npm, Sigstore, Trivy and Dependabot |
+| Configuration | `VITE_TERMS_URL` and `VITE_PRIVACY_URL` (public links, hidden when unset; a link that is not safe to follow is dropped), `VITE_E2E` (the end-to-end build only; a production build refuses it), `LINK_IN_BIO_API` (the development proxy target) and the `CHAIN_PAYMENTS_ORIGIN` and `SUI_RPC_ORIGIN` build arguments that fill the image's Content-Security-Policy; none is a secret. A failed request is told in fixed words and never repeats a configured address (the service's own plain words are shown only where they explain what a person can change) |
+
+**B.RFC-3 Deviations:** none. **B.IOP:** the page is a static bundle that any static host can serve with the documented headers, and it holds no data a person could need to take away; the interfaces it consumes are the platform's published ones (`docs/INTEROP.md`). There is no written deprecation policy beyond the platform's rule that releases before mainnet are patch bumps with the changelog naming what broke.
+
 ## Section A — Invariant verification matrix
 
 | # | Invariant | Enforced at | Proven by | Status |
@@ -811,3 +839,4 @@ makes `tests/dist.test.ts` fail without a build (CI sets it); `E2E_BROWSERS=all`
 - [x] Executive summary matches the current dispositions
 - [x] Counts re-measured (130 vitest, 406 Playwright)
 - [x] Re-verification log entry
+- 2026-11-26 — Part B documentation pass: read every tracked file against the documentation standard and annotated it (100 measured files meet it); recorded F28 (documentation drift, RESOLVED); applied the RFC, IOP, PRIV and CONF lenses for the first time (front matter in the Part B section); `npm ci` (Node 26), `npm run type-check`, `npm run lint`, `npm test` (139 passed), `npm run build`, `npm run check:dist`, `npm run check:csp` and `npm run test:e2e` on Chromium (450 passed, the shared storage suite included); the built bundle is unchanged.

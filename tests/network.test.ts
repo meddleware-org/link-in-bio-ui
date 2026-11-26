@@ -5,6 +5,7 @@ import { rpcUrlFor, useNetwork } from '@meddleware/wallet-adapter'
 import { applyInstanceNetwork } from '../src/lib/network.js'
 
 describe('applyInstanceNetwork', () => {
+  // Selects the instance's network with its full node.
   it("selects the instance's network with its full node", () => {
     applyInstanceNetwork({ suiNetwork: 'mainnet', suiRpcUrl: 'https://sui.example:443' })
     expect(useNetwork().network.value).toBe('mainnet')
@@ -12,6 +13,7 @@ describe('applyInstanceNetwork', () => {
     expect(rpcUrlFor('testnet')).toBe('https://fullnode.testnet.sui.io:443')
   })
 
+  // Goes back to the public full node when the instance names none.
   it('goes back to the public full node when the instance names none', () => {
     applyInstanceNetwork({ suiNetwork: 'mainnet', suiRpcUrl: null })
     expect(useNetwork().rpcUrl.value).toBe('https://fullnode.mainnet.sui.io:443')
@@ -19,6 +21,7 @@ describe('applyInstanceNetwork', () => {
     expect(useNetwork().rpcUrl.value).toBe('https://fullnode.testnet.sui.io:443')
   })
 
+  // Refuses a full node that is not a plain https URL, and ignores an unknown network.
   it('refuses a full node that is not a plain https URL, and ignores an unknown network', () => {
     expect(() => applyInstanceNetwork({ suiNetwork: 'testnet', suiRpcUrl: 'http://sui.example' })).toThrow(/https URL/)
     const before = useNetwork().network.value
@@ -26,6 +29,7 @@ describe('applyInstanceNetwork', () => {
     expect(useNetwork().network.value).toBe(before)
   })
 
+  // Stores nothing in the browser for the instance's network (it is not the person's choice: STORAGE_LEDGER B4).
   it("stores nothing in the browser for the instance's network (it is not the person's choice: STORAGE_LEDGER B4)", () => {
     const written: string[] = []
     const storage = { getItem: () => null, setItem: (k: string) => void written.push(k), removeItem: () => {} }

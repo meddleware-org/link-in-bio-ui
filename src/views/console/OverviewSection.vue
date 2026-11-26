@@ -1,15 +1,26 @@
 <script setup lang="ts">
-// Counts, queues and the deployment's switches.
+// The overview: counts, queues and the deployment's switches (sign-up mode, billing providers, custom domains, Web Risk screening, federation and bank feeds). Read-only; every figure comes from the
+// service. Related: ConsoleArea.vue (hosts it), api/admin.ts (`overview`).
+// Vue's lifecycle and reactivity.
 import { onMounted, ref, shallowRef } from 'vue'
+// The shared badge, live status, notice and stat rows.
 import { UiBadge, UiLiveStatus, UiNotice, UiStatGrid, UiStatRow } from '@meddleware/ui'
+// The words for a failed request.
 import { describeError } from '../../api/errors.js'
+// The overview's shape.
 import type { Overview } from '../../api/types.js'
+// Sizes and dates for people.
 import { bytes, when } from '../../lib/format.js'
+// The console context.
 import { useConsole } from './console.js'
 
+// The typed operator API.
 const { api } = useConsole()
+// The overview once read.
 const o = shallowRef<Overview | null>(null)
+// A failed read, in words.
 const problem = ref('')
+// Read the overview.
 onMounted(async () => {
   try {
     o.value = await api.overview()
@@ -17,17 +28,25 @@ onMounted(async () => {
     problem.value = describeError(e)
   }
 })
+// The words for each sign-up mode.
 const SIGNUP: Record<string, string> = { closed: 'Closed', invite: 'By invitation', open: 'Open' }
+// A budget in words, or "no limit" when it is zero.
 const budget = (n: number, per: string) => (n ? `${n.toLocaleString('en-GB')} ${per}` : 'no limit')
+// A count with thousands separators; missing counts as zero.
 const count = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-GB')
 </script>
 
 <template>
   <div class="overview">
+    <!-- The section's heading. -->
     <h2>Overview</h2>
+    <!-- A failed read. -->
     <UiNotice v-if="problem" type="error" :message="problem" />
+    <!-- Loading. -->
     <UiLiveStatus v-else-if="!o" label="Loading" message="Loading…" />
+    <!-- Once read. -->
     <template v-if="o">
+      <!-- What is waiting for a person. -->
       <section aria-labelledby="ov-work">
         <h3 id="ov-work">Waiting for a person</h3>
         <UiStatGrid>
@@ -37,6 +56,7 @@ const count = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-GB')
           <UiStatRow label="Links that could not be checked">{{ o.links.unknown }}</UiStatRow>
         </UiStatGrid>
       </section>
+      <!-- Accounts and pages. -->
       <section aria-labelledby="ov-accounts">
         <h3 id="ov-accounts">Accounts and pages</h3>
         <UiStatGrid>
@@ -49,10 +69,12 @@ const count = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-GB')
           <UiStatRow label="Pictures stored">{{ bytes(o.storageBytes) }}</UiStatRow>
         </UiStatGrid>
       </section>
+      <!-- The deployment's switches. -->
       <section aria-labelledby="ov-switches">
         <h3 id="ov-switches">Switches</h3>
         <UiStatGrid>
           <UiStatRow label="Sign-up">{{ SIGNUP[o.switches.signup] ?? o.switches.signup }}</UiStatRow>
+          <!-- On or off, as a badge with words. -->
           <UiStatRow label="Other people’s pages served">
             <UiBadge :tone="o.switches.thirdPartyPages ? 'ok' : 'neutral'">{{ o.switches.thirdPartyPages ? 'On' : 'Off' }}</UiBadge>
           </UiStatRow>
@@ -67,6 +89,7 @@ const count = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-GB')
           <UiStatRow label="Bank feeds">{{ o.switches.bankFeeds?.join(', ') || 'none' }}</UiStatRow>
         </UiStatGrid>
       </section>
+      <!-- The change budgets per account (shown when the service reports them). -->
       <section v-if="o.accountLimits" aria-labelledby="ov-limits">
         <h3 id="ov-limits">Change budgets per account</h3>
         <p>Removing or hiding links, and taking a page offline, are never limited.</p>
@@ -76,9 +99,12 @@ const count = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-GB')
           <UiStatRow label="New links">{{ budget(o.accountLimits.newLinksPerDay, 'a day') }}</UiStatRow>
         </UiStatGrid>
       </section>
+      <!-- Web Risk screening this month: its mode, its use against the caps and, in update mode, the state of each list. -->
       <section v-if="o.webRisk" aria-labelledby="ov-webrisk">
         <h3 id="ov-webrisk">Web Risk this month ({{ o.webRisk.month }})</h3>
+        <!-- Off: links are checked against the built-in rules and the blocklists only. -->
         <p v-if="!o.webRisk.on">Off: links are checked against the built-in rules, the blocklist and ThreatFox only.</p>
+        <!-- Lookup mode: each new link is checked with Google, against a free allowance and a paid ceiling. -->
         <UiStatGrid v-else-if="o.webRisk.mode === 'lookup'">
           <UiStatRow label="Mode">Lookup (each new link is checked with Google)</UiStatRow>
           <UiStatRow label="Calls">{{ count(o.webRisk.calls) }} of {{ count(o.webRisk.allowance ?? o.webRisk.monthlyCap) }}</UiStatRow>
@@ -86,12 +112,14 @@ const count = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-GB')
           <UiStatRow label="Paid calls allowed">{{ count(o.webRisk.paidMonthlyCalls) }}</UiStatRow>
           <UiStatRow v-if="o.webRisk.rechecksStopAt != null" label="Rechecks stop at">{{ count(o.webRisk.rechecksStopAt) }} (the rest is kept for new links)</UiStatRow>
         </UiStatGrid>
+        <!-- Update mode: the lists are kept here and no link leaves the service. -->
         <template v-else>
           <UiStatGrid>
             <UiStatRow label="Mode">Update (the lists are kept here; no link leaves the service)</UiStatRow>
             <UiStatRow label="Calls">{{ count(o.webRisk.calls) }} of {{ count(o.webRisk.monthlyCap) }}</UiStatRow>
             <UiStatRow label="Confirmations">{{ count(o.webRisk.confirms) }} of {{ count(o.webRisk.confirmMonthlyCap) }}</UiStatRow>
           </UiStatGrid>
+          <!-- Each list's health. -->
           <UiStatGrid v-if="o.webRisk.lists?.length">
             <UiStatRow v-for="l in o.webRisk.lists" :key="l.threatType" :label="l.threatType">
               <UiBadge :tone="l.lastError ? 'danger' : 'ok'">{{ l.lastError ? 'Failing' : 'Current' }}</UiBadge>
@@ -100,6 +128,7 @@ const count = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-GB')
           </UiStatGrid>
         </template>
       </section>
+      <!-- Bank feeds: whether each is working and how many credits it has seen. -->
       <section v-if="o.bankFeeds?.length" aria-labelledby="ov-feeds">
         <h3 id="ov-feeds">Bank feeds</h3>
         <UiStatGrid>
@@ -114,6 +143,7 @@ const count = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-GB')
 </template>
 
 <style scoped>
+/* The overview and its sections are columns with the shared gap. */
 .overview,
 .overview section {
   display: flex;
@@ -121,11 +151,13 @@ const count = (n: number | null | undefined) => (n ?? 0).toLocaleString('en-GB')
   gap: var(--space-sm);
 }
 
+/* The sections are far apart, and the text keeps a readable width. */
 .overview {
   gap: var(--space-lg);
   max-inline-size: var(--mw-content-prose);
 }
 
+/* No default margins. */
 h2,
 h3,
 p {

@@ -1,3 +1,5 @@
+// Tests of the HTTP layer (src/api/http.ts), the typed APIs over it and the hosted editor source: the request header on every write, same-origin relative paths only, the service's error shape,
+// the timeout, and the loopback editor's own header.
 import { describe, expect, it } from 'vitest'
 import { adminApi } from '../src/api/admin.js'
 import { appApi } from '../src/api/app.js'
@@ -5,10 +7,12 @@ import { ApiError, describeError } from '../src/api/errors.js'
 import { createHttp, DEFAULT_TIMEOUT_MS, url } from '../src/api/http.js'
 import { hostedSource } from '../src/editor/source.js'
 
+/** A fetch response with this status, body and content type. */
 function reply(status: number, body: unknown, type = 'application/json'): Response {
   return new Response(status === 204 ? null : typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': type } })
 }
 
+/** An HTTP layer over a mocked fetch, with the calls it made. */
 function client(f: (url: string, init: RequestInit) => Response = () => reply(200, {})) {
   const calls: Array<{ url: string; init: RequestInit }> = []
   const fetchMock = (async (u: string, init: RequestInit) => {
@@ -20,7 +24,9 @@ function client(f: (url: string, init: RequestInit) => Response = () => reply(20
 
 const headers = (init: RequestInit) => Object.fromEntries(Object.entries(init.headers as Record<string, string>).map(([k, v]) => [k.toLowerCase(), v]))
 
+// The HTTP layer's rules.
 describe('the HTTP layer', () => {
+  // Sends X-Link-In-Bio-Request on every write and never on a read, same-origin, with no token.
   it('sends X-Link-In-Bio-Request on every write and never on a read, same-origin, with no token', async () => {
     const { http, calls } = client()
     await http.get('/api/v1/me')
@@ -46,6 +52,7 @@ describe('the HTTP layer', () => {
     expect(calls[2]!.init.body).toBe('{"schema":1}')
   })
 
+  // Adds the loopback editor header when asked, on writes only.
   it('adds the loopback editor header when asked, on writes only', async () => {
     const calls: RequestInit[] = []
     const http = createHttp({ fetch: (async (_u: string, init: RequestInit) => (calls.push(init), reply(200, {}))) as unknown as typeof fetch, writeHeaders: { 'X-Link-In-Bio-Editor': '1' } })
@@ -55,12 +62,14 @@ describe('the HTTP layer', () => {
     expect(headers(calls[1]!)).toMatchObject({ 'x-link-in-bio-editor': '1', 'x-link-in-bio-request': '1' })
   })
 
+  // Builds only relative /api/ URLs, leaving empty query values out.
   it('builds only relative /api/ URLs, leaving empty query values out', () => {
     expect(url('/api/v1/admin/accounts', { q: '', offset: 0, x: undefined, y: null, z: 'a b' })).toBe('/api/v1/admin/accounts?offset=0&z=a+b')
     expect(() => url('https://elsewhere.example.org/api/v1/me')).toThrow()
     expect(() => url('//elsewhere.example.org/api')).toThrow()
   })
 
+  // Carries the service error {error, code, issues} in one error type.
   it('carries the service error {error, code, issues} in one error type', async () => {
     const issues = [{ path: 'items/0/url', code: 'url_scheme', message: 'A link must start with https:// or mailto:.' }]
     const { http } = client(() => reply(422, { error: 'the page document has problems', code: 'invalid_page', issues }))
@@ -70,6 +79,7 @@ describe('the HTTP layer', () => {
     expect(e.issues).toEqual(issues)
   })
 
+  // Reads the loopback editor’s {ok, errors} and {ok, error} answers into the same error type.
   it('reads the loopback editor’s {ok, errors} and {ok, error} answers into the same error type', async () => {
     const errors = [{ path: 'identity/displayName', code: 'missing', message: 'This is required.' }]
     let { http } = client(() => reply(422, { ok: false, errors, warnings: [] }))
@@ -80,6 +90,7 @@ describe('the HTTP layer', () => {
     expect([b.code, b.message, b.issues]).toEqual([null, 'not a picture', []])
   })
 
+  // Treats a redirect or an HTML page where JSON belongs as not signed in, and no answer as status 0.
   it('treats a redirect or an HTML page where JSON belongs as not signed in, and no answer as status 0', async () => {
     for (const make of [() => ({ type: 'opaqueredirect', status: 0, ok: false, headers: new Headers() }) as unknown as Response, () => reply(302, '', 'text/html'), () => reply(200, '<!doctype html><title>Sign in</title>', 'text/html')]) {
       const { http } = client(make)
@@ -95,6 +106,7 @@ describe('the HTTP layer', () => {
     expect(describeError(e)).toMatch(/could not be reached/)
   })
 
+  // Gives every request a deadline: a server that never answers ends as "could not be reached".
   it('gives every request a deadline: a server that never answers ends as "could not be reached"', async () => {
     const seen: Array<AbortSignal | null | undefined> = []
     // A fetch that never answers on its own, only to its signal (as the browser's does).
@@ -114,6 +126,7 @@ describe('the HTTP layer', () => {
     expect(DEFAULT_TIMEOUT_MS).toBe(30_000)
   })
 
+  // Returns text when asked (the local preview) and nothing for a 204.
   it('returns text when asked (the local preview) and nothing for a 204', async () => {
     let { http } = client(() => reply(200, '<!doctype html><p>hi</p>', 'text/html'))
     expect(await http.request('POST', '/api/v1/preview', { json: {}, text: true })).toBe('<!doctype html><p>hi</p>')
@@ -121,6 +134,7 @@ describe('the HTTP layer', () => {
     expect(await http.post('/api/v1/logout')).toBeUndefined()
   })
 
+  // Describes errors in plain words, passing on the service’s own sentence where a person can act on it.
   it('describes errors in plain words, passing on the service’s own sentence where a person can act on it', () => {
     expect(describeError(new ApiError(409, 'conflict', 'That handle is taken or too close to one that exists.'))).toBe('That handle is taken or too close to one that exists.')
     expect(describeError(new ApiError(500, 'internal', 'stack trace here'))).not.toContain('stack')
@@ -130,6 +144,7 @@ describe('the HTTP layer', () => {
 })
 
 describe('the typed API', () => {
+  // Calls each app route with its method, path and body.
   it('calls each app route with its method, path and body', async () => {
     const { http, calls } = client(() => reply(200, {}))
     const api = appApi(http)
@@ -163,6 +178,7 @@ describe('the typed API', () => {
     ])
   })
 
+  // Calls the admin routes under /api/v1/admin with the field names the service reads.
   it('calls the admin routes under /api/v1/admin with the field names the service reads', async () => {
     const { http, calls } = client(() => reply(200, {}))
     const api = adminApi(http)
@@ -188,6 +204,7 @@ describe('the typed API', () => {
 })
 
 describe('the hosted editor source', () => {
+  // Passes the uploaded picture’s URL on only as a path on this site or an https URL.
   it('passes the uploaded picture’s URL on only as a path on this site or an https URL', async () => {
     const answer = (url: unknown) => createHttp({ fetch: (async () => reply(200, { avatar: 'sha256:ab', url })) as unknown as typeof fetch })
     const upload = (url: unknown) => hostedSource(answer(url)).uploadAvatar(new Blob(['x'], { type: 'image/png' }))

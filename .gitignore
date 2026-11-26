@@ -1,3 +1,4 @@
+# Installed packages and build output (dist-e2e is the end-to-end build).
 node_modules/
 dist/
 dist-e2e/

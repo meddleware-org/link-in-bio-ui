@@ -1,3 +1,5 @@
+// Tests of the page document model (src/editor/model.ts): normalising what the server sent, adding, removing and moving items, writing the document back, and placing the service's issues on
+// the fields they name.
 import { describe, expect, it } from 'vitest'
 import {
   addGroup, addLink, canMove, errorFor, fieldId, itemKey, linkCount, moveItem, normalise, placeIssues, removeItem, toDocument, type GroupDoc,
@@ -20,6 +22,7 @@ const sample = () =>
 const ids = (doc: ReturnType<typeof sample>) => doc.items.map((i) => i.id)
 
 describe('the document model', () => {
+  // Fills in what is missing and types the fields the form edits, keeping everything else.
   it('fills in what is missing and types the fields the form edits, keeping everything else', () => {
     const d = normalise({ identity: { handle: 'x' } })
     expect(d).toMatchObject({ schema: 1, identity: { displayName: '', handle: 'x' }, items: [], theme: {}, contact: [] })
@@ -29,6 +32,7 @@ describe('the document model', () => {
     expect(s.support).toHaveLength(1)
   })
 
+  // Adds links and groups with ids no item has, at the end of the page or of a group.
   it('adds links and groups with ids no item has, at the end of the page or of a group', () => {
     const d = sample()
     expect(addLink(d).id).toBe('link-1')
@@ -39,6 +43,7 @@ describe('the document model', () => {
     expect(linkCount(d)).toBe(5)
   })
 
+  // Removes an item wherever it is.
   it('removes an item wherever it is', () => {
     const d = sample()
     expect(removeItem(d, 'c')).toBe(true)
@@ -48,6 +53,7 @@ describe('the document model', () => {
     expect(ids(d)).toEqual(['b', 'g'])
   })
 
+  // Moves an item one place within its own list, and not past either end.
   it('moves an item one place within its own list, and not past either end', () => {
     const d = sample()
     expect(canMove(d, 'a', -1)).toBe(false)
@@ -64,6 +70,7 @@ describe('the document model', () => {
     expect((d.items[1] as GroupDoc).items.map((l) => l.id)).toEqual(['link-1', 'c'])
   })
 
+  // Writes the document back without empty optional text or false flags, keeping the rest as it came.
   it('writes the document back without empty optional text or false flags, keeping the rest as it came', () => {
     const d = sample()
     d.items[0] = { ...d.items[0]!, kind: 'link', title: '  A  ', description: '  ', hidden: false } as never
@@ -78,6 +85,7 @@ describe('the document model', () => {
     expect(out.meta).toEqual({ lang: 'en', indexable: true })
   })
 
+  // Places the service’s issues on the fields they name, by the link’s id rather than its position.
   it('places the service’s issues on the fields they name, by the link’s id rather than its position', () => {
     const d = sample()
     const placed = placeIssues(d, [
@@ -102,6 +110,7 @@ describe('the document model', () => {
     expect(errorFor(placed, itemKey('a', 'url'))).toBeNull()
   })
 
+  // Makes DOM ids from field keys.
   it('makes DOM ids from field keys', () => {
     expect(fieldId(itemKey('link-1', 'url'))).toBe('f-item-link-1-url')
     expect(fieldId('identity/displayName')).toBe('f-identity-displayName')

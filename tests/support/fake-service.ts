@@ -5,6 +5,7 @@
 //
 // Test support only: nothing under src/ imports it, and scripts/check-dist.mjs fails the build if it reaches dist.
 
+/** One request the fake received, for tests to inspect. */
 export interface Call {
   method: string
   path: string
@@ -13,6 +14,7 @@ export interface Call {
   headers: Record<string, string>
 }
 
+/** What the fake answers: a status with JSON, text or nothing. */
 export interface FakeReply {
   status: number
   json?: unknown
@@ -20,8 +22,10 @@ export interface FakeReply {
   contentType?: string
 }
 
+/** A request body: untyped JSON, because the fake reads whatever the app sends. */
 type Body = Record<string, any>
 
+/** A fixed "now", so the data is the same on every run. */
 const NOW = '2026-11-16T12:00:00Z'
 
 /** A refund line as the service writes it (`amount` is the exact decimal of `amountMinor`). */
@@ -35,16 +39,22 @@ function refundLine(l: { purchase: string; provider: string; months: number; amo
 }
 
 /** What the signed-in account may ask back (GET /api/v1/billing/refunds), keyed as the service works it out. */
+/** The refund offers the fake gives for each kind. */
 const REFUND_OFFERS = {
   cancel: { kind: 'cancel', months: 4, until: null, lines: [refundLine({ purchase: 'e0000001-0000-4000-8000-000000000003', provider: 'square', months: 4, amountMinor: 1052, unit: 'GBP', scale: 2, feeMinor: 46, usedMinor: 102, daysUsed: 4 })] },
   unstarted: { kind: 'unstarted', months: 2, until: '2026-12-16T12:00:00Z', lines: [refundLine({ purchase: 'e0000001-0000-4000-8000-000000000001', provider: 'chain-payments', months: 2, amountMinor: 5931788, unit: 'USDC', scale: 6, feeMinor: 11887 })] },
   unapplied: { kind: 'unapplied', months: 1, until: null, lines: [refundLine({ purchase: 'e0000001-0000-4000-8000-000000000002', provider: 'chain-payments', months: 1, amountMinor: 3965894, unit: 'USDC', scale: 6 })] },
 } as const
+/** Base64url of a string. */
 const b64url = (s: string) => Buffer.from(s).toString('base64url')
+/** A success reply. */
 const ok = (json: unknown, status = 200): FakeReply => ({ status, json })
+/** A 204 reply. */
 const none = (): FakeReply => ({ status: 204 })
+/** An error reply in the service's shape. */
 const err = (status: number, code: string, error: string, extra: Record<string, unknown> = {}): FakeReply => ({ status, json: { error, code, ...extra } })
 
+/** One finding about a page document, as the parser reports it. */
 export interface Issue {
   path: string
   code: string
@@ -52,6 +62,7 @@ export interface Issue {
 }
 
 /** The page checks the app shows: a few of the parser's rules, with its paths and codes. */
+/** Check a page document the way the parser reports it: issues by path. */
 export function checkDocument(doc: Body, handle: string | null): Issue[] {
   const issues: Issue[] = []
   const id = doc.identity ?? {}
@@ -74,41 +85,59 @@ export function checkDocument(doc: Body, handle: string | null): Issue[] {
   return issues
 }
 
+/** The limits the fake reports. */
 export const LIMITS = {
   manifestBytes: 65536, displayName: 64, handle: 30, bio: 160, pronouns: 24, linkTitle: 80, groupTitle: 80, linkDescription: 120,
   links: 60, groups: 10, id: 36, contacts: 4, support: 3, label: 40, urlBytes: 2048, reservedHandles: ['admin', 'app'],
   icons: ['github', 'mastodon', 'bluesky', 'email', 'website'],
 }
 
+/** The theme options the fake reports. */
 export const THEME = {
   colorMode: ['system', 'light', 'dark'], season: ['none', 'spring', 'summer', 'autumn', 'winter'],
   accent: ['season', 'red', 'orange', 'yellow', 'green', 'blue', 'terracotta', 'moss', 'slate'], buttons: ['filled', 'outline', 'plain'],
   radius: ['xs', 'sm', 'md', 'lg'], density: ['comfortable', 'compact'], layout: ['list', 'cards'], font: ['sans', 'serif', 'rounded', 'mono'],
 }
 
+/** A complete theme. */
 const fullTheme = { colorMode: 'system', season: 'none', accent: 'season', buttons: 'outline', radius: 'md', density: 'comfortable', layout: 'list', font: 'sans' }
 
+/** An in-memory Link in Bio service: the app API, the admin API and the loopback editor backend, with the shapes and rules the app must get right. */
 export class FakeService {
+  // Every request received, in order.
   calls: Call[] = []
   /** Who is signed in to the app (null: nobody). */
   handle: string | null = null
+  // How the instance offers sign-up.
   signup: 'closed' | 'invite' | 'open' = 'invite'
   /** The admin gate: signed in, the gate's 401/403, the console not configured (503), or the edge's HTML error page (502). */
   gate: 'ok' | 401 | 403 | 503 | 502 = 'ok'
   /** Answer the hosted routes (false: only the loopback editor's). */
+  // Answer the hosted routes (false: only the loopback editor's).
   hosted = true
+  // Whether the account is free.
   free = false
+  // When the paid period ends.
   paidUntil: string | null = '2026-12-16T12:00:00Z'
+  // The account's country.
   country: string | null = 'GB'
+  // Whether the page is published.
   published = true
+  // The page's version.
   version = 3
+  // The account's passkeys.
   passkeys = [{ id: 'aa01', name: 'Laptop' }]
+  // The linked wallets.
   wallets: string[] = []
+  // How many recovery codes remain.
   codesLeft = 10
+  // How many times a checkout has been read.
   checkoutReads = 0
   /** How many reads of a checkout answer `open` before it is `paid`. */
   checkoutOpenReads = 1
+  // What the provider's `client` object holds for a started checkout.
   checkoutClient: Record<string, unknown> = { kind: 'chain-payments', sessionId: '0123456789abcdef0123456789abcdef', baseUrl: 'https://pay.example.org' }
+  // The page draft the account holds.
   draft: Body = {
     schema: 1,
     identity: { kind: 'person', displayName: 'Ada Example', handle: 'ada', bio: 'Writes about examples.' },
@@ -121,30 +150,39 @@ export class FakeService {
     contact: [{ label: 'Email', url: 'mailto:ada@example.org' }],
     meta: { lang: 'en', indexable: true },
   }
+  // The console's reports queue.
   reports: Body[] = [
     { id: 'r0000001-0000-4000-8000-000000000001', page: 'spammy', account: 'a0000002-0000-4000-8000-000000000002', url: 'https://bad.example.org/win', reason: 'fraud', details: 'Asks for card numbers.', contact: 'someone@example.org', status: 'open', createdAt: NOW, decidedAt: null, decidedBy: null, decision: null, statement: null },
     { id: 'r0000001-0000-4000-8000-000000000002', page: 'loud', account: 'a0000003-0000-4000-8000-000000000003', url: null, reason: 'harassment', details: '', contact: null, status: 'open', createdAt: NOW, decidedAt: null, decidedBy: null, decision: null, statement: null },
   ]
+  // The console's appeals queue.
   appeals: Body[] = [
     { id: 'p0000001-0000-4000-8000-000000000001', account: 'a0000002-0000-4000-8000-000000000002', report: 'r0000001-0000-4000-8000-000000000001', text: 'The link was a joke.', status: 'open', createdAt: NOW, decidedAt: null, decidedBy: null, statement: null },
   ]
+  // The blocklist.
   blocklist: Body[] = [{ pattern: 'bad.example.org', kind: 'host', reason: 'phishing', addedBy: 'operator:op', addedAt: NOW }]
+  // The issued invites.
   invites: Body[] = [
     { id: 'i0000001-0000-4000-8000-000000000001', heldBy: null, selection: null, note: 'friends', createdBy: 'operator:op', createdAt: NOW, expiresAt: '2026-12-16T12:00:00Z', redeemedBy: null, redeemedAt: null, revokedAt: null },
   ]
+  // The saved selections.
   selections: Body[] = [{ id: 's0000001-0000-4000-8000-000000000001', name: 'Long-standing', criteria: { minAgeDays: 90, published: true, paid: null, inviteesInGoodStanding: true, tag: null }, createdBy: 'operator:op', createdAt: NOW }]
+  // Ids for new rows start well above the seed data's.
   nextId = 100
   /** The account's open refund request (GET /api/v1/billing/refunds), and its past ones (GET /api/v1/billing). */
   openRefund: Body | null = null
   refundHistory: Body[] = [
     { id: 'q0000002-0000-4000-8000-000000000002', kind: 'unstarted', status: 'declined', reason: '', at: '2026-10-01T12:00:00Z', decidedAt: '2026-10-02T12:00:00Z', refundReference: null, details: { months: 1, note: 'The month had begun by the time it was looked at; ask again for the months still unstarted.' }, lines: [] },
   ]
+  // The refund requests asked in a test.
   refundAsks: Body[] = []
   /** The network the instance's wallet is on (GET /api/v1/instance). */
   suiNetwork = 'testnet'
+  // The wallet address the person gave for Open Payments.
   walletAddress: unknown = null
   /** Where the Open Payments wallet sends the browser to approve the payment. */
   openPaymentsRedirect = 'https://wallet.example/approve?id=1'
+  // What the Open Payments finish step received.
   finished: unknown = null
   /** The console's queue (GET /api/v1/admin/refund-requests): a request with per-purchase lines, and one from before lines. */
   refunds: Body[] = [
@@ -157,6 +195,7 @@ export class FakeService {
     { id: 'q0000001-0000-4000-8000-000000000001', account: 'a0000001-0000-4000-8000-000000000001', handle: 'ada', kind: 'unapplied', event: 'e0000001-0000-4000-8000-000000000002', reason: 'I paid twice by mistake.', status: 'open', details: null, createdAt: NOW, refundReference: null, refundEvent: null, decidedBy: null, decidedAt: null, monthStarted: false, lines: [], payment: { provider: 'chain-payments', months: 1, amountPence: 300, paidAt: NOW, digest: '4JFuen7pDZCzqdRwUmB4oCwbeJ7Xqw5DqBsupvwyX1wb', payer: '0x' + 'a9'.repeat(32), coinType: '0xa1ec::usdc::USDC', amount: '3965894', method: 'sui-testnet:USDC', checkout: 'c0000001-0000-4000-8000-000000000009' } },
   ]
 
+  // The next fresh id.
   private id(): string {
     return `00000000-0000-4000-8000-${String(this.nextId++).padStart(12, '0')}`
   }
@@ -173,6 +212,7 @@ export class FakeService {
     return new Response(JSON.stringify(r.json ?? null), { status: r.status, headers: { 'content-type': 'application/json' } })
   }
 
+  /** Answer one request: record it, apply the header rule, then route it to the app or the admin routes. */
   respond(method: string, pathAndQuery: string, headers: Record<string, string>, bodyText?: string): FakeReply {
     const url = new URL(pathAndQuery, 'http://localhost')
     const query = Object.fromEntries(url.searchParams.entries())
@@ -190,10 +230,12 @@ export class FakeService {
     return this.app(method, path, query, (body ?? {}) as Body)
   }
 
+  /** The recorded calls to a method and path. */
   callsTo(method: string, path: string): Call[] {
     return this.calls.filter((c) => c.method === method && c.path === path)
   }
 
+  // The signed-in account as the service reports it.
   private account() {
     return {
       id: 'a0000001-0000-4000-8000-000000000001', handle: this.handle ?? 'ada', status: 'active', free: this.free, paidUntil: this.paidUntil,
@@ -202,10 +244,12 @@ export class FakeService {
     }
   }
 
+  // Whether anybody is signed in.
   private session(): boolean {
     return this.handle !== null
   }
 
+  // The screening result for each of the draft's links.
   private screening() {
     const urls: string[] = []
     for (const i of this.draft.items ?? []) {
@@ -215,6 +259,7 @@ export class FakeService {
     return urls.map((u, n) => ({ url: u, verdict: n === 0 ? 'clean' : n === 1 ? 'unchecked' : 'unknown', detail: null }))
   }
 
+  // The app routes (and the loopback editor's), answered from the in-memory data.
   private app(method: string, path: string, query: Record<string, string>, b: Body): FakeReply {
     // The loopback editor's routes (`link-in-bio serve --mode local`).
     if (path === '/api/v1/manifest' && method === 'GET') return this.hosted ? err(404, 'no_route', 'no such route') : ok(this.draft)
@@ -428,6 +473,7 @@ export class FakeService {
 
   pendingHandle: string | null = null
 
+  // The operator routes, answered from the in-memory data, behind the gate.
   private admin(method: string, path: string, query: Record<string, string>, b: Body): FakeReply {
     if (this.gate === 503) return err(503, 'unavailable', 'the console is not configured')
     if (this.gate === 502) return { status: 502, text: '<!doctype html><title>502 Bad Gateway</title>' }

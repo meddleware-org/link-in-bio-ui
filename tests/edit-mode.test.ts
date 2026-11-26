@@ -22,6 +22,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+/** A fake `fetch` for the local editor: the service in loopback mode, and every URL the page asked for. */
 function local(): { service: FakeService; urls: string[]; fetch: typeof fetch } {
   const service = new FakeService()
   service.hosted = false
@@ -33,6 +34,7 @@ function local(): { service: FakeService; urls: string[]; fetch: typeof fetch } 
   return { service, urls, fetch: f }
 }
 
+/** Every request was a relative loopback route of the editor, and none asked for the hosted app, an account or a wallet. */
 function expectLoopbackOnly(urls: string[], calls: FakeService['calls']): void {
   expect(urls.length).toBeGreaterThan(0)
   for (const u of urls) {
@@ -44,6 +46,7 @@ function expectLoopbackOnly(urls: string[], calls: FakeService['calls']): void {
 }
 
 describe('the local editor', () => {
+  // At /edit, loads, edits, saves and previews through the loopback routes only, with the editor header on writes.
   it('at /edit, loads, edits, saves and previews through the loopback routes only, with the editor header on writes', async () => {
     const { service, urls, fetch } = local()
     w = mount(LinkInBioView, { props: { fetch, start: '/edit', hostname: '127.0.0.1' }, attachTo: document.body })
@@ -70,6 +73,7 @@ describe('the local editor', () => {
     expectLoopbackOnly(urls, service.calls)
   })
 
+  // Shows the backend’s issues next to their fields.
   it('shows the backend’s issues next to their fields', async () => {
     const { urls, fetch, service } = local()
     w = mount(LinkInBioView, { props: { fetch, start: '/edit', hostname: 'localhost' }, attachTo: document.body })
@@ -82,6 +86,7 @@ describe('the local editor', () => {
     expectLoopbackOnly(urls, service.calls)
   })
 
+  // Is what / opens on a loopback host whose server is the loopback editor (it asks only that origin which API it serves).
   it('is what / opens on a loopback host whose server is the loopback editor (it asks only that origin which API it serves)', async () => {
     const { urls, fetch, service } = local()
     w = mount(LinkInBioView, { props: { fetch, start: '/', hostname: '127.0.0.1' }, attachTo: document.body })

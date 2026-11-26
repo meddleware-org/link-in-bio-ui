@@ -1,3 +1,5 @@
+// Tests of the WebAuthn conversions (src/api/webauthn.ts): base64url, the options from the service's JSON (with and without the browser's own parsers), credentials as JSON, and the
+// ceremonies through a replaceable credentials container.
 import { describe, expect, it, vi } from 'vitest'
 import { creationOptions, credentialJson, createPasskey, fromBase64url, getPasskey, requestOptions, toBase64url } from '../src/api/webauthn.js'
 
@@ -14,6 +16,7 @@ const REG = {
 }
 
 describe('base64url', () => {
+  // Round-trips every byte value, without padding, and reads standard base64 too.
   it('round-trips every byte value, without padding, and reads standard base64 too', () => {
     const all = new Uint8Array(256).map((_, i) => i)
     const s = toBase64url(all)
@@ -25,6 +28,7 @@ describe('base64url', () => {
 })
 
 describe('WebAuthn options from the service’s JSON', () => {
+  // Unwraps { publicKey } and converts the binary fields itself when the browser has no JSON parser.
   it('unwraps { publicKey } and converts the binary fields itself when the browser has no JSON parser', () => {
     const o = creationOptions(REG, {})
     expect(bytes(o.challenge)).toEqual([9, 8, 7, 255, 254, 253])
@@ -39,6 +43,7 @@ describe('WebAuthn options from the service’s JSON', () => {
     expect(requestOptions({ publicKey: { challenge: 'AQI' } }, {}).allowCredentials).toBeUndefined()
   })
 
+  // Uses the browser’s own parsers when they exist, handing them the inner options.
   it('uses the browser’s own parsers when they exist, handing them the inner options', () => {
     const parseCreationOptionsFromJSON = vi.fn(() => ({ parsed: 'create' }) as unknown as PublicKeyCredentialCreationOptions)
     const parseRequestOptionsFromJSON = vi.fn(() => ({ parsed: 'get' }) as unknown as PublicKeyCredentialRequestOptions)
@@ -51,11 +56,13 @@ describe('WebAuthn options from the service’s JSON', () => {
 
 describe('a credential as JSON', () => {
   const buf = (...b: number[]) => new Uint8Array(b).buffer
+  // Uses credential.toJSON() when it exists.
   it('uses credential.toJSON() when it exists', () => {
     const cred = { toJSON: () => ({ id: 'from-browser' }) } as unknown as PublicKeyCredential
     expect(credentialJson(cred)).toEqual({ id: 'from-browser' })
   })
 
+  // Builds the same shape by hand otherwise: a registration and an assertion.
   it('builds the same shape by hand otherwise: a registration and an assertion', () => {
     const reg = {
       id: 'Kis', rawId: buf(42, 43), type: 'public-key',
@@ -75,6 +82,7 @@ describe('a credential as JSON', () => {
     expect(credentialJson(assertion).response).toEqual({ clientDataJSON: 'AQ', authenticatorData: 'BA', signature: 'BQ', userHandle: 'Bg' })
   })
 
+  // Runs the ceremonies through the credentials container it is given.
   it('runs the ceremonies through the credentials container it is given', async () => {
     const made = { toJSON: () => ({ id: 'new' }) }
     const creds = { create: vi.fn(async () => made as unknown as Credential), get: vi.fn(async () => null) }

@@ -8,6 +8,7 @@ export interface Issue {
   message: string
 }
 
+/** What the service (or the network) said went wrong. The one error type of the API layer. */
 export class ApiError extends Error {
   /** The HTTP status, or 0 when no answer arrived. */
   readonly status: number
@@ -16,8 +17,11 @@ export class ApiError extends Error {
   /** The page document's problems, for `invalid_page`. */
   readonly issues: Issue[]
 
+  // Build the error; `issues` is empty unless the service refused a page document.
   constructor(status: number, code: string | null, message: string, issues: Issue[] = []) {
+    // The message is the service's own plain words (or empty); `describeError` decides what a person reads.
     super(message)
+    // A stable name, so a log line or a test can recognise it.
     this.name = 'ApiError'
     this.status = status
     this.code = code
@@ -29,16 +33,21 @@ export class ApiError extends Error {
    * answered 200 (the gate's sign-in page); the HTTP layer gives all three status 401. An HTML error page (a 502 from the edge) is not.
    */
   get signedOut(): boolean {
+    // The HTTP layer gives all three signs of being signed out status 401.
     return this.status === 401
   }
 }
 
 /** Reads an `issues` array loosely: anything that is not a well-formed issue is dropped. */
 export function readIssues(v: unknown): Issue[] {
+  // Anything that is not a list has no issues.
   if (!Array.isArray(v)) return []
   return v
+    // Keep only objects.
     .filter((i): i is Record<string, unknown> => !!i && typeof i === 'object')
+    // Each needs a path and a message.
     .filter((i) => typeof i.path === 'string' && typeof i.message === 'string')
+    // Shape it, with an empty code when none was given.
     .map((i) => ({ path: i.path as string, code: typeof i.code === 'string' ? i.code : '', message: i.message as string }))
 }
 
@@ -47,29 +56,40 @@ export function readIssues(v: unknown): Issue[] {
  * value, a conflict), so those are shown as they are; everything else gets a fixed sentence, so no internals reach the page.
  */
 export function describeError(e: unknown): string {
+  // Anything that is not an API error is a fault in the page or the browser.
   if (!(e instanceof ApiError)) {
+    // A cancelled or timed-out browser ceremony (a passkey prompt dismissed).
     if (e instanceof Error && /NotAllowedError|AbortError/.test(e.name)) return 'The browser did not complete the request (it was cancelled or timed out).'
     return 'Something went wrong. Reload the page and try again.'
   }
+  // A fixed sentence per status.
   switch (e.status) {
+    // No answer at all.
     case 0:
       return 'The server could not be reached. Check your connection and try again.'
+    // Signed out.
     case 401:
       return 'You are signed out. Sign in again.'
+    // Either this server lacks the route, or the thing is gone.
     case 404:
       return e.code === 'no_route' ? 'This server does not offer that.' : 'That no longer exists. Reload and check.'
+    // Too large.
     case 413:
       return 'That is too large to send.'
+    // The service writes these in plain words for what a person can fix, so they are shown as they are.
     case 400:
     case 403:
     case 409:
     case 422:
       return e.message || 'The server refused that. Check the form and try again.'
+    // Rate limited: the service's own limits say which and when; the edge's has no words.
     case 429:
       // The service's own limits say which one and when it resets; the edge's rate limit has no words of its own.
       return e.code === 'limited' && e.message ? e.message : 'Too many requests at once. Wait a moment and try again.'
+    // Temporarily unavailable; nothing changed.
     case 503:
       return 'The service is temporarily unavailable. Try again in a moment; nothing was changed.'
+    // Other 5xx: no detail; other 4xx: the service's words or the status.
     default:
       return e.status >= 500 ? 'The server had a problem. Try again; if it persists, report it.' : e.message || `Unexpected answer (${e.status}).`
   }

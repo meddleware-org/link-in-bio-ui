@@ -1,3 +1,5 @@
+// Helpers for the component tests: settle pending work, mount a component against the app context and a fake service, find a button or a field by its text, and preload the lazy views.
+// Related: tests/support/fake-service.ts.
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent, h, nextTick, type Component } from 'vue'
 import { createHttp } from '../../src/api/http.js'
@@ -15,6 +17,7 @@ export async function settle(rounds = 6): Promise<void> {
 }
 
 /** Mount a component that reads the app context, against a fake service. */
+/** Mount a component that reads the app context, against a fake service. */
 export function mountWithApp(component: Component, props: Record<string, unknown> = {}, service = new FakeService()): { w: VueWrapper; service: FakeService; app: AppContext } {
   const app = createAppContext(createHttp({ fetch: service.fetch as typeof fetch }), createRouter('/'))
   const Wrapper = defineComponent({
@@ -27,6 +30,7 @@ export function mountWithApp(component: Component, props: Record<string, unknown
   return { w, service, app }
 }
 
+/** The first button whose text equals (or matches) `text`; fails with the buttons that exist. */
 export function button(root: VueWrapper, text: string | RegExp) {
   const b = root.findAll('button').find((x) => (typeof text === 'string' ? x.text() === text : text.test(x.text())))
   if (!b) throw new Error(`no button "${String(text)}" in: ${root.findAll('button').map((x) => x.text()).join(' | ')}`)
@@ -43,4 +47,5 @@ export function field(root: VueWrapper, label: string) {
 
 /** The areas and sections load when first opened; loading them once first keeps every test's first open as quick as its second. */
 const views = Promise.all(Object.values(import.meta.glob('../../src/views/**/*.vue')).map((load) => load()))
+/** Resolve once every lazy view has loaded. */
 export const preload = (): Promise<unknown> => views

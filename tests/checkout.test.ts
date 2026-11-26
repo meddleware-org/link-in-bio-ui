@@ -1,3 +1,4 @@
+// Tests of following a checkout (src/lib/checkout.ts): polling until the checkout is paid, expired or cancelled, and reading each provider's `client` object into a plan the billing view acts on.
 import { describe, expect, it, vi } from 'vitest'
 import { httpsHref, pollCheckout, planCheckout, walletAddressValid } from '../src/lib/checkout.js'
 import type { CheckoutStatus } from '../src/api/types.js'
@@ -6,6 +7,7 @@ const st = (status: CheckoutStatus['status']): CheckoutStatus => ({ checkout: 'c
 const noSleep = () => Promise.resolve()
 
 describe('following a checkout', () => {
+  // Asks until the checkout is paid, then stops.
   it('asks until the checkout is paid, then stops', async () => {
     const answers = [st('open'), st('open'), st('paid')]
     const get = vi.fn(async () => answers.shift()!)
@@ -16,11 +18,13 @@ describe('following a checkout', () => {
     expect(seen).toEqual(['open', 'open', 'paid'])
   })
 
+  // Stops on expired or cancelled too.
   it('stops on expired or cancelled too', async () => {
     expect((await pollCheckout(async () => st('expired'), { sleep: noSleep }))?.status).toBe('expired')
     expect((await pollCheckout(async () => st('cancelled'), { sleep: noSleep }))?.status).toBe('cancelled')
   })
 
+  // Asks again after a failed question, and gives up on a 404.
   it('asks again after a failed question, and gives up on a 404', async () => {
     let n = 0
     const flaky = async () => {
@@ -31,6 +35,7 @@ describe('following a checkout', () => {
     await expect(pollCheckout(async () => Promise.reject(Object.assign(new Error('gone'), { status: 404 })), { sleep: noSleep })).rejects.toThrow('gone')
   })
 
+  // Gives up after the timeout with the last status, waiting the interval between questions.
   it('gives up after the timeout with the last status, waiting the interval between questions', async () => {
     let t = 0
     const sleeps: number[] = []
@@ -45,6 +50,7 @@ describe('following a checkout', () => {
     expect(sleeps).toEqual([1000, 1000, 1000, 1000])
   })
 
+  // Stops when the view goes away.
   it('stops when the view goes away', async () => {
     const stop = new AbortController()
     const get = vi.fn(async () => {
@@ -58,11 +64,13 @@ describe('following a checkout', () => {
 })
 
 describe('what a started checkout asks for', () => {
+  // Chain Payments: its session and an https origin.
   it('Chain Payments: its session and an https origin', () => {
     expect(planCheckout({ kind: 'chain-payments', sessionId: 'cs_1', baseUrl: 'https://pay.example.org' })).toEqual({ kind: 'chain-payments', sessionId: 'cs_1', baseUrl: 'https://pay.example.org/' })
     expect(planCheckout({ kind: 'chain-payments', sessionId: 'cs_1', baseUrl: 'http://pay.example.org' })).toEqual({ kind: 'unsupported' })
   })
 
+  // A provider’s page: an https URL and the provider’s name in words.
   it('a provider’s page: an https URL and the provider’s name in words', () => {
     expect(planCheckout({ kind: 'redirect', url: 'https://pay.example.org/c/1', provider: 'gocardless' })).toEqual({ kind: 'redirect', url: 'https://pay.example.org/c/1', provider: 'GoCardless' })
     expect(planCheckout({ kind: 'redirect', url: 'javascript:alert(1)', provider: 'square' })).toEqual({ kind: 'unsupported' })
@@ -72,11 +80,13 @@ describe('what a started checkout asks for', () => {
     }
   })
 
+  // HttpsHref: what safeHref allows, https only.
   it('httpsHref: what safeHref allows, https only', () => {
     expect(httpsHref('https://wallet.example/approve?id=1')).toBe('https://wallet.example/approve?id=1')
     for (const bad of ['http://localhost/approve', 'javascript:alert(1)', 'https://u:p@wallet.example/', '', null, undefined]) expect(httpsHref(bad), String(bad)).toBeNull()
   })
 
+  // A bank transfer: the details that are there, the amount and the reference.
   it('a bank transfer: the details that are there, the amount and the reference', () => {
     const sepa = planCheckout({ kind: 'bank-transfer', scheme: 'sepa', payee: 'Example Ltd', iban: 'DE00 1234', bic: 'EXAMPLEX', sortCode: null, accountNumber: null, amount: '12.00', currency: 'EUR', reference: 'RF18 5390', qr: 'BCD\n002\n1\nSCT' })
     expect(sepa).toEqual({
@@ -89,6 +99,7 @@ describe('what a started checkout asks for', () => {
     expect(planCheckout({ kind: 'bank-transfer', payee: 'X', amount: '1', currency: 'GBP', reference: 'R' })).toEqual({ kind: 'unsupported' })
   })
 
+  // Anything else is unsupported.
   it('anything else is unsupported', () => {
     expect(planCheckout({ kind: 'crypto-later' })).toEqual({ kind: 'unsupported' })
     expect(planCheckout(null)).toEqual({ kind: 'unsupported' })
@@ -96,6 +107,7 @@ describe('what a started checkout asks for', () => {
 })
 
 describe('Open Payments', () => {
+  // Reads the checkout only when the payee is an https wallet address and the amount is given.
   it('reads the checkout only when the payee is an https wallet address and the amount is given', () => {
     expect(planCheckout({ kind: 'open-payments', step: 'wallet-address', payee: 'https://wallet.example/shop', amount: '6.00', assetCode: 'GBP' })).toEqual({
       kind: 'open-payments', payee: 'https://wallet.example/shop', amount: '6.00', assetCode: 'GBP',
@@ -104,6 +116,7 @@ describe('Open Payments', () => {
     expect(planCheckout({ kind: 'open-payments', payee: 'https://wallet.example/shop', assetCode: 'GBP' })).toEqual({ kind: 'unsupported' })
   })
 
+  // Accepts https wallet addresses and $ payment pointers only.
   it('accepts https wallet addresses and $ payment pointers only', () => {
     expect(walletAddressValid('https://wallet.example/alice')).toBe(true)
     expect(walletAddressValid(' $wallet.example/alice ')).toBe(true)

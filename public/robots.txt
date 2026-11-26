@@ -1,2 +1,7 @@
+# robots.txt for the app host. This host serves the sign-in, account and operator pages, which are not for crawlers; the pages people publish are
+# served on their own host, with their own rules. The rule below asks every well-behaved crawler to stay out of this one. It is a request, not
+# protection; the sign-in and the access gate are what keep strangers out.
+# Every crawler.
 User-agent: *
+# Nothing may be fetched.
 Disallow: /

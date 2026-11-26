@@ -7,6 +7,7 @@ import { connectMockWallet } from '@meddleware/frontend-config/wallet'
 import { FakeService } from '../tests/support/fake-service.js'
 import { consoleAt, open, signedIn, tab } from './open.js'
 
+// Signing up with a passkey (a virtual authenticator), then the recovery codes once.
 test('signing up with a passkey (a virtual authenticator), then the recovery codes once', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'The virtual authenticator is a Chromium DevTools Protocol feature (WebAuthn.addVirtualAuthenticator).')
   const cdp: CDPSession = await page.context().newCDPSession(page)
@@ -39,6 +40,7 @@ test('signing up with a passkey (a virtual authenticator), then the recovery cod
   expect(problems).toEqual([])
 })
 
+// The local editor in a real browser asks nothing of any origin but its own, and only its editor routes.
 test('the local editor in a real browser asks nothing of any origin but its own, and only its editor routes', async ({ page }) => {
   const LOCAL = new Set(['/api/v1/manifest', '/api/v1/limits', '/api/v1/theme/options', '/api/v1/preview', '/api/v1/avatar', '/api/v1/validate'])
   const requests: string[] = []
@@ -64,6 +66,7 @@ test('the local editor in a real browser asks nothing of any origin but its own,
   expect(problems).toEqual([])
 })
 
+// Signing in with a Sui wallet: the wallet signs the service’s message.
 test('signing in with a Sui wallet: the wallet signs the service’s message', async ({ page }) => {
   const { service, problems } = await open(page)
   await connectMockWallet(page)
@@ -74,6 +77,7 @@ test('signing in with a Sui wallet: the wallet signs the service’s message', a
   expect(problems).toEqual([])
 })
 
+// The editor round trip: change, save, and the sandboxed preview shows the saved draft.
 test('the editor round trip: change, save, and the sandboxed preview shows the saved draft', async ({ page }) => {
   const { service, problems } = await signedIn(page)
   const frame = page.locator('iframe.preview-frame')
@@ -95,6 +99,7 @@ test('the editor round trip: change, save, and the sandboxed preview shows the s
   expect(problems).toEqual([])
 })
 
+// The frame has no permissions: scripts and the app’s origin are out of its reach.
 test('the frame has no permissions: scripts and the app’s origin are out of its reach', async ({ page }) => {
   const { problems } = await signedIn(page)
   const sandbox = await page.locator('iframe.preview-frame').evaluate((f: HTMLIFrameElement) => ({ value: f.getAttribute('sandbox'), tokens: [...f.sandbox] }))
@@ -102,6 +107,7 @@ test('the frame has no permissions: scripts and the app’s origin are out of it
   expect(problems).toEqual([])
 })
 
+// The editor with its preview frame: WCAG 2.2 AA and AAA (the script-less frame excluded from axe), and the keyboard.
 test('the editor with its preview frame: WCAG 2.2 AA and AAA (the script-less frame excluded from axe), and the keyboard', async ({ page }) => {
   test.setTimeout(120_000)
   const { problems } = await signedIn(page)
@@ -110,6 +116,7 @@ test('the editor with its preview frame: WCAG 2.2 AA and AAA (the script-less fr
   expect(problems).toEqual([])
 })
 
+// Validation: the service’s messages sit next to their fields and in a summary that links to them.
 test('validation: the service’s messages sit next to their fields and in a summary that links to them', async ({ page }) => {
   const { problems } = await signedIn(page)
   await page.getByLabel('Name', { exact: true }).fill('')
@@ -126,6 +133,7 @@ test('validation: the service’s messages sit next to their fields and in a sum
   expect(problems).toEqual([])
 })
 
+// Reordering by keyboard: the moved link keeps focus, and where it went is announced.
 test('reordering by keyboard: the moved link keeps focus, and where it went is announced', async ({ page }) => {
   const { service, problems } = await signedIn(page)
   const down = page.getByRole('button', { name: 'Move down (My website)' })
@@ -143,6 +151,7 @@ test('reordering by keyboard: the moved link keeps focus, and where it went is a
   expect(problems).toEqual([])
 })
 
+// The report form: no account, prefilled, sent, confirmed.
 test('the report form: no account, prefilled, sent, confirmed', async ({ page }) => {
   const { service, problems } = await open(page, '/report?page=spammy')
   await expect(page.getByRole('heading', { level: 2, name: 'Report a page' })).toBeVisible()
@@ -155,6 +164,7 @@ test('the report form: no account, prefilled, sent, confirmed', async ({ page })
   expect(problems).toEqual([])
 })
 
+// Billing: paying for months with Chain Payments opens its checkout.
 test('billing: paying for months with Chain Payments opens its checkout', async ({ page }) => {
   const { service, problems } = await signedIn(page)
   await tab(page, 'Billing').click()
@@ -175,6 +185,7 @@ test('billing: paying for months with Chain Payments opens its checkout', async 
   expect(problems).toEqual([])
 })
 
+// Billing: a checkout for another network than the app says so and never asks the wallet.
 test('billing: a checkout for another network than the app says so and never asks the wallet', async ({ page }) => {
   const service = new FakeService()
   service.suiNetwork = 'mainnet'
@@ -189,6 +200,7 @@ test('billing: a checkout for another network than the app says so and never ask
   expect(problems).toEqual([])
 })
 
+// The console: deciding a report in the queue.
 test('the console: deciding a report in the queue', async ({ page }) => {
   const { service, problems } = await consoleAt(page, 'Reports')
   const report = page.getByRole('article', { name: 'A scam or fraud: spammy' })
@@ -202,6 +214,7 @@ test('the console: deciding a report in the queue', async ({ page }) => {
   expect(problems).toEqual([])
 })
 
+// The console says what to do when the gate has not signed the operator in, or the console is not available.
 test('the console says what to do when the gate has not signed the operator in, or the console is not available', async ({ page }) => {
   const s = new FakeService()
   s.gate = 403
@@ -217,6 +230,7 @@ test('the console says what to do when the gate has not signed the operator in, 
   await expect(page.getByRole('heading', { level: 2, name: 'Sign in through your access gate' })).toHaveCount(0)
 })
 
+// Every main view fits a phone: no horizontal scroll of the page.
 test('every main view fits a phone: no horizontal scroll of the page', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 })
   const { problems } = await signedIn(page)
@@ -230,6 +244,7 @@ test('every main view fits a phone: no horizontal scroll of the page', async ({ 
   expect(problems).toEqual([])
 })
 
+// Billing: refunds are asked for as the service works them out, and can be withdrawn.
 test('billing: refunds are asked for as the service works them out, and can be withdrawn', async ({ page }) => {
   const { service, problems } = await signedIn(page)
   await tab(page, 'Billing').click()
@@ -259,6 +274,7 @@ test('billing: refunds are asked for as the service works them out, and can be w
   expect(problems).toEqual([])
 })
 
+// Billing: Open Payments asks for the wallet, goes there, and finishes on the way back.
 test('billing: Open Payments asks for the wallet, goes there, and finishes on the way back', async ({ page }) => {
   const service = new FakeService()
   service.checkoutClient = { kind: 'open-payments', step: 'wallet-address', payee: 'https://wallet.example/shop', amount: '6.00', assetCode: 'GBP' }
@@ -282,6 +298,7 @@ test('billing: Open Payments asks for the wallet, goes there, and finishes on th
   expect(problems.filter((p) => !p.includes('wallet.example'))).toEqual([])
 })
 
+// The console: a refund is recorded per purchase, and a request can be declined.
 test('the console: a refund is recorded per purchase, and a request can be declined', async ({ page }) => {
   const { service, problems } = await consoleAt(page, 'Refunds')
   const cancel = page.getByRole('article', { name: /^spammy: cancellation/ })

@@ -27,6 +27,7 @@ const FORBIDDEN = [
   /\bexpire\(\)/,
 ]
 
+/** Every file under a folder, recursively. */
 function files(d) {
   return readdirSync(d).flatMap((n) => {
     const p = join(d, n)
@@ -34,17 +35,25 @@ function files(d) {
   })
 }
 
+// The forbidden patterns found, with their file.
 const problems = []
+// How many files were read.
 let n = 0
+// Read every text-like file in the build.
 for (const f of files(dir)) {
+  // Images and fonts cannot carry test support.
   if (!/\.(js|mjs|css|html|map|json)$/.test(f)) continue
   n++
   const text = readFileSync(f, 'utf8')
+  // Any forbidden pattern in the file is a problem.
   for (const re of FORBIDDEN) if (re.test(text)) problems.push(`${f}: matches ${re}`)
 }
+// An empty build would pass trivially, so it is a problem too.
 if (n === 0) problems.push(`${dir} has no built files`)
+// The app must ask crawlers not to index it.
 const index = readFileSync(join(dir, 'index.html'), 'utf8')
 if (!/<meta[^>]+name="robots"[^>]+noindex/i.test(index)) problems.push('index.html lacks <meta name="robots" content="noindex">')
+// Any problem fails the check.
 if (problems.length) {
   console.error(problems.join('\n'))
   process.exit(1)

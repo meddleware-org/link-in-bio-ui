@@ -35,6 +35,7 @@ afterEach(() => {
   w = null
 })
 
+/** Mount the whole view at a starting path against a fake service. */
 function open(start: string, service = new FakeService()) {
   w = mount(LinkInBioView, { props: { fetch: service.fetch as typeof fetch, start, hostname: 'app.example.link' }, attachTo: document.body })
   return service
@@ -44,7 +45,9 @@ const writesCarryTheHeader = (s: FakeService) => {
   for (const c of s.calls.filter((x) => x.method !== 'GET')) expect(c.headers['x-link-in-bio-request'], `${c.method} ${c.path}`).toBe('1')
 }
 
+// The signed-in editor: saving, refused fields and moving links.
 describe('the hosted editor', () => {
+  // Saves the draft, and shows refused fields with the service’s words next to them and in a summary.
   it('saves the draft, and shows refused fields with the service’s words next to them and in a summary', async () => {
     const s = new FakeService()
     s.handle = 'ada'
@@ -81,6 +84,7 @@ describe('the hosted editor', () => {
     writesCarryTheHeader(s)
   })
 
+  // Moves a link with its buttons and saves the new order.
   it('moves a link with its buttons and saves the new order', async () => {
     const s = new FakeService()
     s.handle = 'ada'
@@ -96,6 +100,7 @@ describe('the hosted editor', () => {
   })
 })
 
+// Each kind of checkout the billing view can show.
 describe('a checkout', () => {
   const panel = (client: Record<string, unknown>, service = new FakeService()) => {
     service.handle = 'ada'
@@ -104,6 +109,7 @@ describe('a checkout', () => {
     return m
   }
 
+  // Chain Payments: renders the kit with its session, then follows the checkout to paid.
   it('Chain Payments: renders the kit with its session, then follows the checkout to paid', async () => {
     const { service } = panel({ kind: 'chain-payments', sessionId: 'cs_1', baseUrl: 'https://pay.example.org' })
     await settle()
@@ -115,6 +121,7 @@ describe('a checkout', () => {
     expect(w!.text()).toContain('Paid. Your page is paid until')
   })
 
+  // Chain Payments: a payment that did not count is the kit’s to explain; the panel never shows the bare reason code.
   it('Chain Payments: a payment that did not count is the kit’s to explain; the panel never shows the bare reason code', async () => {
     panel({ kind: 'chain-payments', sessionId: 'cs_1', baseUrl: 'https://pay.example.org' })
     await settle()
@@ -128,6 +135,7 @@ describe('a checkout', () => {
     expect(w!.text()).not.toContain('something-new')
   })
 
+  // Open Payments: a wallet that answers with a non-https approval address is not followed, and says why.
   it('Open Payments: a wallet that answers with a non-https approval address is not followed, and says why', async () => {
     const s = new FakeService()
     s.openPaymentsRedirect = 'http://localhost:9/approve'
@@ -146,6 +154,7 @@ describe('a checkout', () => {
     }
   })
 
+  // A provider’s page: plain words and a plain link there (no new window).
   it('a provider’s page: plain words and a plain link there (no new window)', async () => {
     panel({ kind: 'redirect', url: 'https://pay.example.org/c/1', provider: 'square' })
     await settle()
@@ -156,6 +165,7 @@ describe('a checkout', () => {
     expect(a.text()).toBe('Continue to Square')
   })
 
+  // A bank transfer: every detail with a copy button, the reference first and foremost, the QR payload as text.
   it('a bank transfer: every detail with a copy button, the reference first and foremost, the QR payload as text', async () => {
     panel({ kind: 'bank-transfer', scheme: 'sepa', payee: 'Example Ltd', iban: 'DE00 1234 5678', bic: 'EXAMPLEX', sortCode: null, accountNumber: null, amount: '12.00', currency: 'EUR', reference: 'RF18 5390 0754 7034', qr: 'BCD\n002\n1\nSCT\nEXAMPLEX' })
     await settle()
@@ -167,6 +177,7 @@ describe('a checkout', () => {
     expect(w!.find('pre').text()).toContain('BCD')
   })
 
+  // A bank transfer is checked once on request, not polled.
   it('a bank transfer is checked once on request, not polled', async () => {
     const s = new FakeService()
     s.checkoutOpenReads = 5
@@ -179,12 +190,14 @@ describe('a checkout', () => {
     expect(w!.text()).toContain('Not arrived yet.')
   })
 
+  // Anything else: says the method is not available here.
   it('anything else: says the method is not available here', async () => {
     panel({ kind: 'something-new' })
     await settle()
     expect(w!.text()).toContain('This payment method is not available in this app yet.')
   })
 
+  // Returning from a provider’s page (/billing?checkout=<id>): billing opens and follows that checkout.
   it('returning from a provider’s page (/billing?checkout=<id>): billing opens and follows that checkout', async () => {
     const s = new FakeService()
     s.handle = 'ada'
@@ -195,7 +208,9 @@ describe('a checkout', () => {
   })
 })
 
+// The report form, which needs no account.
 describe('the report form', () => {
+  // Needs no account, is prefilled from ?page=, sends the report and confirms it.
   it('needs no account, is prefilled from ?page=, sends the report and confirms it', async () => {
     const s = open('/report?page=Spammy')
     await settle()
@@ -213,6 +228,7 @@ describe('the report form', () => {
   })
 })
 
+// The operator console's gate and its reports queue.
 describe('the console', () => {
   it.each([
     [401, 'Sign in through your access gate'],
@@ -226,6 +242,7 @@ describe('the console', () => {
     expect(w!.find('h2').text()).toBe(words)
   })
 
+  // A 503 passes on the service’s words and offers a reload; an HTML error page from the edge is an error, not a sign-in.
   it('a 503 passes on the service’s words and offers a reload; an HTML error page from the edge is an error, not a sign-in', async () => {
     const s = new FakeService()
     s.gate = 503
@@ -243,6 +260,7 @@ describe('the console', () => {
     expect(w!.text()).toContain('The server had a problem.')
   })
 
+  // Decides a report: actioned, with a decision and a statement, hiding its link.
   it('decides a report: actioned, with a decision and a statement, hiding its link', async () => {
     const s = open('/admin/')
     await settle()
@@ -261,7 +279,9 @@ describe('the console', () => {
   })
 })
 
+// The one-time recovery codes.
 describe('recovery codes', () => {
+  // Shows the ten codes once, with a copy of all of them, and goes on only after “I saved these codes”.
   it('shows the ten codes once, with a copy of all of them, and goes on only after “I saved these codes”', async () => {
     const codes = Array.from({ length: 10 }, (_, i) => `CODE-${i}AAA-BBBB`)
     w = mount(RecoveryCodes, { props: { codes }, attachTo: document.body })
@@ -276,7 +296,9 @@ describe('recovery codes', () => {
   })
 })
 
+// The sign-up form.
 describe('sign-up', () => {
+  // Asks for the handle, the age and the current terms, and an invite code when sign-up is by invitation.
   it('asks for the handle, the age and the current terms, and an invite code when sign-up is by invitation', async () => {
     const s = new FakeService()
     open('/', s)

@@ -1,11 +1,17 @@
+// Vite configuration: the fleet's shared application settings with the Vue plugin, the production Content-Security-Policy for `vite preview`, the dev proxy to a local service and the
+// deduplication of the libraries the Chain Payments kit and client share with the app. `npm run dev` and `npm run build` read it.
+// Reads the Dockerfile to take its Content-Security-Policy.
 import { readFileSync } from 'node:fs'
+// Vite's typed configuration helper.
 import { defineConfig } from 'vite'
+// The Vue single-file-component plugin.
 import vue from '@vitejs/plugin-vue'
+// The fleet's shared application settings.
 import { meddlewareApp } from '@meddleware/frontend-config/vite'
 
 // The Content-Security-Policy the production image sends (Dockerfile `ARG CSP`, with the Chain Payments and Sui full node origins the
 // build arguments give). `vite preview` sends the same one, with the origins from the environment, so the browser tests run under the
-// real policy and a violation fails them. `upgrade-insecure-requests` is left out only because the preview server speaks plain http.
+/** The Content-Security-Policy the production image sends (Dockerfile `ARG CSP`, with the Chain Payments and Sui full node origins the build arguments give). `vite preview` sends the same one, with the origins from the environment, so the browser tests run under the real policy and a violation fails them. `upgrade-insecure-requests` is left out only because the preview server speaks plain http. */
 function imageCsp(): string | undefined {
   try {
     const m = /^ARG CSP="([^"]+)"/m.exec(readFileSync(new URL('./Dockerfile', import.meta.url), 'utf8'))
@@ -18,12 +24,14 @@ function imageCsp(): string | undefined {
     return undefined
   }
 }
+// The policy, or undefined where the Dockerfile cannot be read.
 const csp = imageCsp()
 
 // The API is same-origin in production (the ingress sends /api/ and /_/ on the app host to the service); in development both are proxied
 // to a local service (LINK_IN_BIO_API, default http://127.0.0.1:8080: `link-in-bio serve --mode app`, or `--mode local` for the
 // editor). The libraries the Chain Payments kit and client share with the app are deduplicated, so the bundle carries one Vue, one
 // @meddleware/ui and one Sui SDK.
+// Where the dev server and `vite preview` send API requests.
 const api = process.env.LINK_IN_BIO_API || 'http://127.0.0.1:8080'
 export default defineConfig((env) =>
   meddlewareApp({

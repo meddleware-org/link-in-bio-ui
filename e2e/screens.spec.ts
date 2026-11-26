@@ -4,6 +4,7 @@ import { expect } from '@playwright/test'
 import { defineShots, type State } from '@meddleware/frontend-config/shots'
 import { consoleAt, open, signedIn, tab } from './open.js'
 
+// One state per main view.
 const states: Record<string, State> = {
   'sign-in': async (page) => {
     await open(page)
@@ -40,4 +41,5 @@ const states: Record<string, State> = {
   },
 }
 
+// Capture each state at the shared widths and colour modes.
 defineShots(states)

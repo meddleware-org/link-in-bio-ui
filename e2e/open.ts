@@ -4,6 +4,7 @@
 import { expect, type Page } from '@playwright/test'
 import { FakeService } from '../tests/support/fake-service.js'
 
+/** The example Chain Payments origin the specs answer for. */
 export const PAY_ORIGIN = 'https://pay.example.org'
 
 /**
@@ -27,6 +28,7 @@ function quote() {
   }
 }
 
+/** Wire a page to a fake service: refuse anything that leaves localhost (except the example Chain Payments origin, answered here), collect page errors and CSP violations, and answer the API from the fake. */
 export async function wire(page: Page, service = new FakeService()) {
   const problems: string[] = []
   page.on('pageerror', (e) => problems.push(`error: ${e.message}`))
@@ -69,6 +71,7 @@ export async function signedIn(page: Page, service = new FakeService()) {
   return wired
 }
 
+/** The tab with exactly this name. */
 export const tab = (page: Page, name: string) => page.getByRole('tab', { name, exact: true })
 
 /** The console, on one of its sections. */

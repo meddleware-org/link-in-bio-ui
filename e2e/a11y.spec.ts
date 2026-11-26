@@ -32,12 +32,15 @@ async function gate(page: Page, status: 403 | 503) {
   await open(page, '/admin/', service)
 }
 
+// One entry per state a person can reach; each opens the app and waits for the state's heading.
 defineA11ySuite(
   {
+    // Sign in.
     'sign-in': async (page) => {
       await open(page)
       await expect(page.getByRole('heading', { level: 2, name: 'Sign in' })).toBeVisible()
     },
+    // Create an account.
     'sign-up': async (page) => {
       await open(page)
       await tab(page, 'Create an account').click()
@@ -55,6 +58,7 @@ defineA11ySuite(
       await expect(page.locator('iframe.preview-frame')).toHaveAttribute('sandbox', '')
       await page.locator('iframe.preview-frame').evaluate((f) => f.remove())
     },
+    // Billing, with the paid period and past payments.
     billing: async (page) => {
       await signedIn(page)
       await tab(page, 'Billing').click()
@@ -67,15 +71,18 @@ defineA11ySuite(
       await page.getByRole('button', { name: 'Ask for this payment back' }).click()
       await expect(page.getByRole('heading', { name: 'Your refund request' })).toBeVisible()
     },
+    // The account with its ways to sign in, decisions and domains.
     account: async (page) => {
       await signedIn(page)
       await tab(page, 'Account').click()
       await expect(page.getByRole('heading', { name: 'Your own domain' })).toBeVisible()
     },
+    // The report form.
     report: async (page) => {
       await open(page, '/report?page=spammy')
       await expect(page.getByRole('heading', { level: 2, name: 'Report a page' })).toBeVisible()
     },
+    // The console's overview.
     'console overview': async (page) => {
       await consoleAt(page, 'Overview')
       await expect(page.getByRole('heading', { name: 'Switches' })).toBeVisible()
@@ -98,6 +105,7 @@ defineA11ySuite(
       await expect(page.locator('iframe.preview-frame')).toHaveAttribute('sandbox', '')
       await page.locator('iframe.preview-frame').evaluate((f) => f.remove())
     },
+    // The recovery codes shown once.
     'recovery codes': async (page) => {
       await open(page)
       await tab(page, 'Create an account').click()
@@ -111,6 +119,7 @@ defineA11ySuite(
       await page.getByRole('button', { name: 'Create the account' }).click()
       await expect(page.getByRole('heading', { name: 'Your recovery codes' })).toBeVisible()
     },
+    // The app when the service is down.
     'service unavailable': async (page) => {
       await wire(page)
       await page.route('**/api/v1/instance', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"the database is unavailable; try again shortly","code":"unavailable"}' }))

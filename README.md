@@ -33,6 +33,8 @@ nothing is published to npm.
 
 ## Development
 
+How to run the checks and propose a change: [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ```bash
 npm ci
 npm run dev            # /api and /_/ proxied to LINK_IN_BIO_API (default http://127.0.0.1:8080)

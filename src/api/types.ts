@@ -2,24 +2,38 @@
 
 import type { Issue } from './errors.js'
 
+/** How sign-up is offered: closed, by invite, or open to anyone. */
 export type SignupMode = 'closed' | 'invite' | 'open'
 
 /** `GET /api/v1/instance`: what this deployment offers. Every operator value the app shows comes from here. */
 export interface Instance {
+  /** What this deployment calls the product. */
   product: string
   version: string
+  /** The host the app is served on. */
   appHost: string
+  /** The domain tenant pages are served under. */
   pagesDomain: string
+  /** How sign-up is offered. */
   signup: SignupMode
+  /** Whether pages may link to third parties. */
   thirdPartyPages: boolean
+  /** The terms version people accept at sign-up. */
   termsVersion: string
+  /** The age a person must confirm. */
   minimumAge: number
+  /** The price of a month, in pence. */
   pricePence: number
   currency: string
+  /** The providers a person may pay through. */
   billingProviders: string[]
+  /** Whether custom domains are offered. */
   customDomains: boolean
+  /** Whether the page is also published for federation. */
   federation: boolean
+  /** The sign-in methods offered. */
   authenticators: string[]
+  /** The Sui network the wallet must be on. */
   suiNetwork: string
   /** The Sui full node the wallet uses for `suiNetwork` (the service's SUI_RPC_URL; the public one by default; null for localnet). */
   suiRpcUrl?: string | null
@@ -27,59 +41,79 @@ export interface Instance {
 
 /** `GET /api/v1/limits`: every bound the page parser enforces. */
 export interface Limits {
+  /** The largest page document, in bytes. */
   manifestBytes: number
   displayName: number
+  /** The longest handle. */
   handle: number
   bio: number
   pronouns: number
   linkTitle: number
   groupTitle: number
   linkDescription: number
+  /** The most links on a page. */
   links: number
+  /** The most groups on a page. */
   groups: number
   id: number
   contacts: number
   support: number
   label: number
   urlBytes: number
+  /** Handles that cannot be taken. */
   reservedHandles: string[]
+  /** The icon names a link may use. */
   icons: string[]
 }
 
+/** An account as the service reports it: handle, status, billing entitlement, country, the page address and the terms version accepted. */
 export interface Account {
   id: string
   handle: string
+  /** Active, suspended or deleted. */
   status: 'active' | 'suspended' | 'deleted'
+  /** True for an account the operator waives payment for. */
   free: boolean
+  /** When the paid period ends, if any. */
   paidUntil: string | null
+  /** True while the account may publish. */
   entitled: boolean
+  /** The account's country, if given. */
   country: string | null
   createdAt: string
+  /** The address of the account's page. */
   pageUrl: string
   termsVersion: string
+  /** Why and until when the account is suspended, if it is. */
   suspension: { kind: string | null; until: string | null } | null
 }
 
 /** `GET /api/v1/me`. */
 export interface Me extends Account {
+  /** The passkeys on the account. */
   passkeys: Array<{ id: string; name: string }>
+  /** The linked Sui wallet addresses. */
   wallets: string[]
+  /** How many one-time recovery codes remain. */
   recoveryCodesLeft: number
 }
 
 /** WebAuthn options as webauthn-rs writes them (`{ publicKey: { … } }`, binary fields in base64url). */
 export type WebAuthnOptionsJson = Record<string, unknown>
 
+/** The start of a passkey ceremony: the service's challenge and the WebAuthn options for the browser. */
 export interface CeremonyStart {
   challenge: string
   options: WebAuthnOptionsJson
 }
 
+/** The start of a wallet sign-in or link: a challenge and the exact message the wallet must sign. */
 export interface WalletChallenge {
   challenge: string
   message: string
 }
 
+/** What sign-up sends: the handle, the age and terms confirmations, an optional country and invite, and how the person will sign in (a passkey or a Sui wallet). */
 export interface SignupStartBody {
   handle: string
   ageConfirmed: boolean
@@ -91,18 +125,22 @@ export interface SignupStartBody {
   address?: string
 }
 
+/** A finished sign-up: the new account and its one-time recovery codes (shown once). */
 export interface SignupFinished {
   account: Account
   recoveryCodes: string[]
 }
 
+/** A finished sign-in: the account and how many recovery codes remain, when the person used one. */
 export interface SignedIn {
   account: Account
   recoveryCodesLeft?: number
 }
 
+/** What link screening concluded: not checked, clean, flagged or unknown. */
 export type Verdict = 'unchecked' | 'clean' | 'flagged' | 'unknown'
 
+/** The screening result for one link. */
 export interface Screening {
   url: string
   verdict: Verdict
@@ -111,17 +149,23 @@ export interface Screening {
 
 /** `GET /api/v1/page`. `issues` are the parser's warnings, or its errors when the stored draft no longer passes. */
 export interface PageState {
+  /** The stored draft document (untyped here: the editor owns its shape). */
   draft: unknown
+  /** True when a version is online. */
   published: boolean
+  /** The draft's version number. */
   version: number
   updatedAt: string | null
   publishedAt: string | null
   url: string
   issues: Issue[]
+  /** The screening result for each link. */
   screening: Screening[]
+  /** True when the draft differs from what is online. */
   changed: boolean
 }
 
+/** A published page: its version, its address, the links held back by screening and whether it is online. */
 export interface Published {
   version: number
   url: string
@@ -129,6 +173,7 @@ export interface Published {
   online: boolean
 }
 
+/** One way to pay: a provider, who sells (the operator or a merchant of record), its fees and the months it covers. */
 export interface Offer {
   id: string
   provider: string
@@ -140,6 +185,7 @@ export interface Offer {
   maxMonths: number
 }
 
+/** A refund request as the account holder sees its progress. */
 export interface RefundRequestState {
   id: string
   status: RefundStatus
@@ -148,6 +194,7 @@ export interface RefundRequestState {
   decidedAt: string | null
 }
 
+/** One line of billing history: a payment or a refund, its months and its amount in pence. */
 export interface BillingEvent {
   id: string
   provider: string
@@ -170,6 +217,7 @@ export interface OpenPaymentsAmount {
   assetScale: number
 }
 
+/** Open Payments: the step that sends the buyer to their wallet to approve, with the amounts shown there. */
 export interface OpenPaymentsRedirect {
   kind: 'open-payments'
   step: 'redirect'
@@ -179,6 +227,7 @@ export interface OpenPaymentsRedirect {
   receiveAmount: OpenPaymentsAmount
 }
 
+/** Open Payments: the checkout after the wallet's approval, and the outgoing payment's state. */
 export interface OpenPaymentsFinished {
   checkout: string
   status: CheckoutStatusName
@@ -199,7 +248,9 @@ export interface Billing {
   refundRequests?: AccountRefundRequest[]
 }
 
+/** Why a refund is asked for: cancelling, an unstarted purchase, or one that was never applied. */
 export type RefundKind = 'cancel' | 'unstarted' | 'unapplied'
+/** Where a refund request stands: open, refunded, withdrawn or declined. */
 export type RefundStatus = 'open' | 'refunded' | 'withdrawn' | 'declined'
 
 /**
@@ -234,6 +285,7 @@ export interface RefundLine extends RefundOfferLine {
   purchaseMonthsLeft: number
 }
 
+/** What may be asked back now, worked out exactly: the kind, the months, the date and each line. */
 export interface RefundOffer {
   kind: RefundKind
   /** Months taken back once every line is refunded. */
@@ -272,6 +324,7 @@ export interface Refundable {
   rules: { cancelDays: number; unappliedDays: number; daysPerMonth: number }
 }
 
+/** What a refund request sends: the kind, the purchase, the months and the reason. */
 export interface RefundAsk {
   kind: RefundKind
   purchase?: string
@@ -285,14 +338,17 @@ export type CheckoutClient =
   | { kind: 'chain-payments'; sessionId: string; baseUrl: string }
   | { kind: string; [k: string]: unknown }
 
+/** A started checkout: its id, the amount in pence and what the provider's widget needs in the browser. */
 export interface CheckoutStarted {
   checkout: string
   amountPence: number
   client: CheckoutClient
 }
 
+/** A checkout's state: open, paid, expired or cancelled. */
 export type CheckoutStatusName = 'open' | 'paid' | 'expired' | 'cancelled'
 
+/** A checkout's state, with the months and the new paid-until date once it is paid. */
 export interface CheckoutStatus {
   checkout: string
   status: CheckoutStatusName
@@ -300,12 +356,14 @@ export interface CheckoutStatus {
   paidUntil: string | null
 }
 
+/** A DNS TXT record the person adds to prove they own a custom domain. */
 export interface TxtRecord {
   name: string
   type: 'TXT'
   value: string
 }
 
+/** A custom domain: its host name, its verification status and the TXT record to add. */
 export interface Domain {
   hostname: string
   status: 'pending' | 'verified' | 'failed'
@@ -313,16 +371,19 @@ export interface Domain {
   record: TxtRecord
 }
 
+/** The account's custom domains, and whether the instance offers them. */
 export interface Domains {
   enabled: boolean
   domains: Domain[]
 }
 
+/** The invites an account holds, and how many have been used. */
 export interface HeldInvites {
   codes: Array<{ code: string; expiresAt: string }>
   redeemed: number
 }
 
+/** A statement of reasons for a moderation decision (what was decided, why and when). */
 export interface Statement {
   report: string
   reason: string
@@ -331,6 +392,7 @@ export interface Statement {
   decidedAt: string | null
 }
 
+/** An appeal against a decision, and where it stands. */
 export interface AppealRecord {
   appeal: string
   report: string | null
@@ -339,11 +401,13 @@ export interface AppealRecord {
   at: string
 }
 
+/** The statements and appeals for an account. */
 export interface Statements {
   statements: Statement[]
   appeals: AppealRecord[]
 }
 
+/** What the report form sends: the page, the link, the reason, details and an optional way to reply. */
 export interface ReportBody {
   page: string
   url?: string
@@ -354,11 +418,13 @@ export interface ReportBody {
 
 // ── the console (/api/v1/admin) ─────────────────────────────────────────────────────────────────────────────────────
 
+/** The signed-in operator of the console. */
 export interface Operator {
   subject: string
   name: string
 }
 
+/** The console's overview: counts of accounts, pages, reports, appeals and links, and storage used. */
 export interface Overview {
   accounts: { active: number; suspended: number; free: number; paid: number }
   pagesPublished: number
@@ -436,6 +502,7 @@ export interface RefundRequestRow {
   } | null
 }
 
+/** One account in the console's list, with its suspension state. */
 export interface AccountRow {
   id: string
   handle: string
@@ -453,6 +520,7 @@ export interface AccountRow {
   createdAt: string
 }
 
+/** One account in full: its page, invitees, invites, billing and domains. */
 export interface AccountDetail {
   account: AccountRow
   page: { published: boolean; version: number; publishedAt: string | null; document: unknown } | null
@@ -463,6 +531,7 @@ export interface AccountDetail {
   audit: Array<{ at: string; actor: string; action: string; details: unknown }>
 }
 
+/** One invite: who holds it, which selection it came from, the note and who made it. */
 export interface InviteRow {
   id: string
   heldBy: string | null
@@ -476,12 +545,14 @@ export interface InviteRow {
   revokedAt: string | null
 }
 
+/** Invites just issued: the codes (shown once) and when they expire. */
 export interface Issued {
   codes: string[]
   issued: number
   expiresAt: string
 }
 
+/** The rules that pick accounts for invites: a minimum age, published, paid, invitees in good standing and a tag. */
 export interface Criteria {
   minAgeDays?: number | null
   published?: boolean | null
@@ -490,6 +561,7 @@ export interface Criteria {
   tag?: string | null
 }
 
+/** A saved set of criteria with a name. */
 export interface Selection {
   id: string
   name: string
@@ -498,6 +570,7 @@ export interface Selection {
   createdAt: string
 }
 
+/** One report in the console's queue. */
 export interface ReportRow {
   id: string
   page: string
@@ -514,6 +587,7 @@ export interface ReportRow {
   statement: string | null
 }
 
+/** One appeal in the console's queue. */
 export interface AppealRow {
   id: string
   account: string
@@ -526,6 +600,7 @@ export interface AppealRow {
   statement: string | null
 }
 
+/** One entry of the blocklist: a pattern, its kind, why and who added it. */
 export interface BlockEntry {
   pattern: string
   kind: 'host' | 'url'
@@ -534,6 +609,7 @@ export interface BlockEntry {
   addedAt: string
 }
 
+/** One row of the audit trail: who did what to which subject, with details. */
 export interface AuditEntry {
   id: number | string
   at: string
