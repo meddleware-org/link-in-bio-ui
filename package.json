@@ -48,7 +48,7 @@
     "@meddleware/ui": "^0.1.47",
     "@meddleware/wallet-adapter": "^0.0.26",
     "@meddleware/web-utils": "^0.0.5",
-    "@mysten/sui": "^2.39.1",
+    "@mysten/sui": "^3.0.1",
     "@mysten/wallet-standard": "^0.21.0",
     "vue": "^3.5.43"
   },
