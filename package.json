@@ -43,7 +43,7 @@
   ],
   "dependencies": {
     "@meddleware/chain-payments-client": "^0.0.2",
-    "@meddleware/chain-payments-kit": "^0.0.3",
+    "@meddleware/chain-payments-kit": "^0.0.4",
     "@meddleware/design-tokens": "^0.1.14",
     "@meddleware/ui": "^0.1.47",
     "@meddleware/wallet-adapter": "^0.0.26",
