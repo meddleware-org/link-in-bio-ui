@@ -7,10 +7,13 @@ import LinkInBioView from '../src/LinkInBioView.vue'
 import CheckoutPanel from '../src/components/CheckoutPanel.vue'
 import RecoveryCodes from '../src/components/RecoveryCodes.vue'
 import { planCheckout } from '../src/lib/checkout.js'
+import { goTo } from '../src/lib/navigate.js'
 import { FakeService } from './support/fake-service.js'
 import { button, mountWithApp, preload, settle } from './support/mount.js'
 
 // The Chain Payments kit is a sibling package with its own tests; here it is a stand-in that reports its props and can say "paid".
+// The test window cannot navigate: the console's sign-out hands its destination to this stand-in.
+vi.mock('../src/lib/navigate.js', () => ({ goTo: vi.fn() }))
 vi.mock('@meddleware/chain-payments-kit', () => ({
   ChainCheckout: defineComponent({
     props: { sessionId: String, baseUrl: String, signAndExecute: Function, level: Number },
@@ -240,6 +243,65 @@ describe('the console', () => {
     open('/admin/', s)
     await settle()
     expect(w!.find('h2').text()).toBe(words)
+  })
+
+  // A service that signs operators in itself names where a sign-in starts; the console then offers that as a link, and only a same-site /auth/ path is believed.
+  it('offers the sign-in the service names, as a link, and ignores a hint that is not a same-site /auth/ path', async () => {
+    const s = new FakeService()
+    s.gate = 401
+    s.signInHint = '/auth/login'
+    open('/admin/', s)
+    await settle()
+    expect(w!.find('h2').text()).toBe('Sign in')
+    expect(w!.find('a.sign-in').attributes('href')).toBe('/auth/login')
+    w!.unmount()
+    for (const bad of ['https://evil.example/auth/login', '//evil.example/auth/login', '/other']) {
+      const t = new FakeService()
+      t.gate = 401
+      t.signInHint = bad
+      open('/admin/', t)
+      await settle()
+      expect(w!.find('h2').text(), bad).toBe('Sign in through your access gate')
+      expect(w!.find('a.sign-in').exists(), bad).toBe(false)
+      w!.unmount()
+    }
+  })
+
+  // Signed in through the provider, the operator signs out through the console and the browser follows the provider's logout address; a refusal says so.
+  it('signs out through the console and follows the provider’s logout address, and says so when that fails', async () => {
+    const s = new FakeService()
+    s.via = 'oidc'
+    open('/admin/', s)
+    await settle()
+    await button(w!, 'Sign out').trigger('click')
+    await settle()
+    expect(s.callsTo('POST', '/auth/logout')).toHaveLength(1)
+    expect(s.callsTo('POST', '/auth/logout')[0]!.headers['x-link-in-bio-request']).toBe('1')
+    expect(goTo).toHaveBeenCalledWith('https://accounts.example.org/logout?id_token_hint=x')
+    vi.mocked(goTo).mockClear()
+    // An address that is not https or same-site is never followed.
+    s.logoutRedirect = 'javascript:alert(1)'
+    await button(w!, 'Sign out').trigger('click')
+    await settle()
+    expect(goTo).not.toHaveBeenCalled()
+    expect(w!.text()).toContain('Could not sign out')
+    s.logoutRefused = true
+    await button(w!, 'Sign out').trigger('click')
+    await settle()
+    expect(goTo).not.toHaveBeenCalled()
+  })
+
+  // Behind the access gate (or an older service) there is no sign-out button: the gate signs out by itself.
+  it('shows no sign-out button behind the access gate', async () => {
+    for (const via of ['access', null] as const) {
+      const s = new FakeService()
+      s.via = via
+      open('/admin/', s)
+      await settle()
+      expect(w!.text()).toContain('Signed in as')
+      expect(w!.findAll('button').some((b) => b.text() === 'Sign out')).toBe(false)
+      w!.unmount()
+    }
   })
 
   // A 503 passes on the service’s words and offers a reload; an HTML error page from the edge is an error, not a sign-in.

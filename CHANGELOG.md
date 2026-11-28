@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-11-28
+
+- **The operator console signs in and out through the platform's identity provider (ADR-0016 stage 6).** `GET /api/v1/admin/me` says `via`. When it is `oidc` the console shows a "Sign out" button that posts to `/auth/logout` (with the request header) and follows the provider's logout address in the answer (only an `https` address or a same-site path is followed; a failure says so and goes nowhere). A 401 from a service that signs operators in itself names where a sign-in starts (`signIn`, accepted only as a same-site `/auth/` path); the console then offers a "Sign in" link instead of asking for a reload. Behind Cloudflare Access nothing changes. The HTTP layer accepts `/auth/logout` as its one path outside `/api/`.
+
 ## [0.0.7] - 2026-11-27
 
 

@@ -112,6 +112,13 @@ export class FakeService {
   signup: 'closed' | 'invite' | 'open' = 'invite'
   /** The admin gate: signed in, the gate's 401/403, the console not configured (503), or the edge's HTML error page (502). */
   gate: 'ok' | 401 | 403 | 503 | 502 = 'ok'
+  /** When set, the gate's 401 names this sign-in path (a service that signs operators in itself). */
+  signInHint: string | null = null
+  /** How the operator signed in, as `GET /api/v1/admin/me` reports it (omitted when null: an older service). */
+  via: 'access' | 'oidc' | null = null
+  /** The address the console's sign-out answer names, and whether sign-out is refused. */
+  logoutRedirect = 'https://accounts.example.org/logout?id_token_hint=x'
+  logoutRefused = false
   /** Answer the hosted routes (false: only the loopback editor's). */
   // Answer the hosted routes (false: only the loopback editor's).
   hosted = true
@@ -226,6 +233,11 @@ export class FakeService {
     this.calls.push({ method, path: url.pathname, query, body, headers: h })
     if (method !== 'GET' && h['x-link-in-bio-request'] !== '1') return err(403, 'forbidden', 'the request is missing its app header')
     const path = url.pathname
+    // The console's own sign-out route (not under /api/v1/admin): it needs the request header like every write, and names where the provider's logout is.
+    if (path === '/auth/logout' && method === 'POST') {
+      if (!h['x-link-in-bio-request']) return err(403, 'forbidden', 'cross-site request refused')
+      return this.logoutRefused ? err(500, 'internal', 'something went wrong') : ok({ redirect: this.logoutRedirect })
+    }
     if (path.startsWith('/api/v1/admin/')) return this.admin(method, path.slice('/api/v1/admin'.length), query, (body ?? {}) as Body)
     return this.app(method, path, query, (body ?? {}) as Body)
   }
@@ -477,14 +489,14 @@ export class FakeService {
   private admin(method: string, path: string, query: Record<string, string>, b: Body): FakeReply {
     if (this.gate === 503) return err(503, 'unavailable', 'the console is not configured')
     if (this.gate === 502) return { status: 502, text: '<!doctype html><title>502 Bad Gateway</title>' }
-    if (this.gate === 401) return err(401, 'unauthorized', 'sign in first')
+    if (this.gate === 401) return this.signInHint ? { status: 401, json: { error: 'sign in first', code: 'unauthorized', signIn: this.signInHint } } : err(401, 'unauthorized', 'sign in first')
     if (this.gate === 403) return err(403, 'forbidden', 'not an operator of Link in Bio')
     const row = (id: string, handle: string, over: Body = {}) => ({
       id, handle, status: 'active', suspensionKind: null, suspensionReason: null, suspendedUntil: null, free: false, operator: false, mayShareInvites: true,
       invitedBy: null, tags: [], country: 'GB', paidUntil: '2026-12-16T12:00:00Z', createdAt: '2026-08-01T09:00:00Z', ...over,
     })
     const accounts = [row('a0000001-0000-4000-8000-000000000001', 'ada'), row('a0000002-0000-4000-8000-000000000002', 'spammy', { invitedBy: 'a0000001-0000-4000-8000-000000000001', mayShareInvites: false })]
-    if (path === '/me') return ok({ subject: 'op-subject', name: 'op@example.org' })
+    if (path === '/me') return ok({ subject: 'op-subject', name: 'op@example.org', ...(this.via ? { via: this.via } : {}) })
     if (path === '/overview') {
       return ok({
         accounts: { active: 12, suspended: 1, free: 3, paid: 8 }, pagesPublished: 10, reports: { open: this.reports.filter((r) => r.status === 'open').length, openOver24h: 0 },

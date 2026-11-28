@@ -3,6 +3,8 @@
 // The hosted service refuses a write without `X-Link-In-Bio-Request`; the loopback editor backend wants `X-Link-In-Bio-Editor` as well.
 
 // The one error type, and the reader of a refused page document's issues.
+// A check that a path is a safe same-site link.
+import { safePath } from '@meddleware/web-utils'
 import { ApiError, readIssues } from './errors.js'
 
 /** The header the hosted service demands on every write (a CSRF defence for the session cookie). */
@@ -47,10 +49,10 @@ export interface Http {
   del<T>(path: string, json?: unknown, query?: Query): Promise<T>
 }
 
-/** `path` with its query string; empty values are left out. Only relative `/api/` paths are accepted, so nothing leaves the origin. */
+/** `path` with its query string; empty values are left out. Only relative `/api/` paths (and the console's own `/auth/logout`) are accepted, so nothing leaves the origin. */
 export function url(path: string, query?: Query): string {
-  // Only relative API paths are accepted, so a request can never leave the origin.
-  if (!path.startsWith('/api/')) throw new Error(`not an API path: ${path}`)
+  // Only relative API paths are accepted, so a request can never leave the origin (the operator console's sign-out route is the one other).
+  if (!path.startsWith('/api/') && path !== '/auth/logout') throw new Error(`not an API path: ${path}`)
   // Build the query string from the given values.
   const qs = new URLSearchParams()
   // Leave out values that are not set.
@@ -137,7 +139,9 @@ export function createHttp(opts: HttpOptions = {}): Http {
     // The service's plain words, or a fixed sentence when it listed issues.
     const message = typeof p.error === 'string' ? p.error : issues.length ? 'The page document has problems.' : ''
     // The status, the code, the words and the issues.
-    throw new ApiError(res.status, code, message, issues)
+    // A 401 may name where a sign-in starts; only a short same-site /auth/ path is believed (the body is untrusted).
+    const hint = res.status === 401 && typeof p.signIn === 'string' && p.signIn.startsWith('/auth/') && safePath(p.signIn) ? p.signIn : null
+    throw new ApiError(res.status, code, message, issues, hint)
   }
 
   return {

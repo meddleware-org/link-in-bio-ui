@@ -16,9 +16,11 @@ export class ApiError extends Error {
   readonly code: string | null
   /** The page document's problems, for `invalid_page`. */
   readonly issues: Issue[]
+  /** For a 401 from a service that signs operators in itself: the same-site `/auth/` path where a sign-in starts, else null. */
+  readonly signIn: string | null
 
   // Build the error; `issues` is empty unless the service refused a page document.
-  constructor(status: number, code: string | null, message: string, issues: Issue[] = []) {
+  constructor(status: number, code: string | null, message: string, issues: Issue[] = [], signIn: string | null = null) {
     // The message is the service's own plain words (or empty); `describeError` decides what a person reads.
     super(message)
     // A stable name, so a log line or a test can recognise it.
@@ -26,6 +28,7 @@ export class ApiError extends Error {
     this.status = status
     this.code = code
     this.issues = issues
+    this.signIn = signIn
   }
 
   /**

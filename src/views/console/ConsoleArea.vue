@@ -5,8 +5,12 @@
 // error page from the edge (a 502 that is HTML), is shown as the error it is, not as a sign-in.
 // Vue's reactivity, lifecycle and lazy components.
 import { computed, defineAsyncComponent, onMounted, ref, type Component } from 'vue'
+// A check that a path is a safe same-site link.
+import { safePath } from '@meddleware/web-utils'
 // The shared tabs, button, live status, notice and tab panel.
 import { AppTabNav, UiButton, UiLiveStatus, UiNotice, UiTabPanel, type AppTab } from '@meddleware/ui'
+// Moving the browser to the provider's logout address.
+import { goTo } from '../../lib/navigate.js'
 // The typed operator API.
 import { adminApi } from '../../api/admin.js'
 // The API error (to tell the cases apart) and the words for a failure.
@@ -62,6 +66,10 @@ const operator = ref<Operator | null>(null)
 const gate = ref<'loading' | 'ok' | 'signin' | 'unavailable' | 'error'>('loading')
 // The service's own words (503) or a failure.
 const problem = ref('')
+// Where a sign-in starts, when the service named it with its 401 (the platform's identity provider).
+const signInPath = ref<string | null>(null)
+// A failed sign-out, in words.
+const signOutProblem = ref('')
 
 // Ask who the operator is: that is the check that the access gate let them in.
 onMounted(async () => {
@@ -70,7 +78,11 @@ onMounted(async () => {
     gate.value = 'ok'
   } catch (e) {
     // Not signed in through the gate.
-    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) gate.value = 'signin'
+    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+      gate.value = 'signin'
+      // A service that signs operators in itself says where.
+      signInPath.value = e.signIn
+    }
     // The console cannot be used now; the service's words say why.
     else if (e instanceof ApiError && e.status === 503) {
       gate.value = 'unavailable'
@@ -83,6 +95,18 @@ onMounted(async () => {
   }
 })
 
+/** End the session through the console (the request header is added to every write), then follow the provider's logout address; only an https address or a same-site path is followed. */
+async function signOut(): Promise<void> {
+  signOutProblem.value = ''
+  try {
+    const { redirect } = await props.http.post<{ redirect?: unknown }>('/auth/logout')
+    if (typeof redirect !== 'string' || !(redirect.startsWith('https://') || safePath(redirect))) throw new Error('refused')
+    goTo(redirect)
+  } catch {
+    signOutProblem.value = 'Could not sign out. Try again, or close this window.'
+  }
+}
+
 /** Reload the page, which sends the browser through the access gate again. */
 function reload(): void {
   window.location.reload()
@@ -94,7 +118,13 @@ function reload(): void {
     <!-- Announces the check. -->
     <UiLiveStatus label="Console" :message="gate === 'loading' ? 'Checking who you are…' : ''" />
     <!-- Not signed in: tell the operator to sign in through the gate. -->
-    <template v-if="gate === 'signin'">
+    <template v-if="gate === 'signin' && signInPath">
+      <h2>Sign in</h2>
+      <p>Sign in with your security key to use the console.</p>
+      <!-- Moving to another page is a link, not a button. -->
+      <p><a class="sign-in" :href="signInPath">Sign in</a></p>
+    </template>
+    <template v-else-if="gate === 'signin'">
       <h2>Sign in through your access gate</h2>
       <p>This console is behind the deployment’s access gate. Sign in there, then reload this page.</p>
       <p><UiButton @click="reload">Reload</UiButton></p>
@@ -113,7 +143,13 @@ function reload(): void {
     <UiNotice v-else-if="gate === 'error'" type="error" :message="problem" />
     <!-- Signed in: the sections. -->
     <template v-else-if="gate === 'ok'">
-      <p class="who">Signed in as <strong>{{ operator?.name || operator?.subject }}</strong></p>
+      <p class="who">
+        Signed in as <strong>{{ operator?.name || operator?.subject }}</strong>
+        <!-- Signed in through the platform's identity provider: signing out ends this session and the provider's, through the console. The access gate has its own sign-out. -->
+        <template v-if="operator?.via === 'oidc'"> · <button type="button" class="sign-out" @click="signOut">Sign out</button></template>
+      </p>
+      <!-- A failed sign-out, in words. -->
+      <UiNotice v-if="signOutProblem" type="error" :message="signOutProblem" />
       <!-- The sections. -->
       <AppTabNav v-model="tab" :tabs="TABS" id-prefix="lib-console" variant="raised" aria-label="Console sections" />
       <UiTabPanel id-prefix="lib-console" :tab="tab" class="console-panel">
@@ -144,5 +180,18 @@ function reload(): void {
 /* Space above and below the open section. */
 .console-panel {
   padding-block: var(--space-sm);
+}
+
+/* Signing out sends a request, so it is a button, drawn like a link (the accent colour, underlined, the text's own size). */
+.sign-out {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
 }
 </style>

@@ -422,6 +422,8 @@ export interface ReportBody {
 export interface Operator {
   subject: string
   name: string
+  /** Which sign-in path was used: `access` (the access gate) or `oidc` (the platform's identity provider, which signs out through the console). Absent from an older service. */
+  via?: 'access' | 'oidc'
 }
 
 /** The console's overview: counts of accounts, pages, reports, appeals and links, and storage used. */
